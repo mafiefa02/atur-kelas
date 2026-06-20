@@ -1,0 +1,45 @@
+import { betterAuth } from "better-auth";
+import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { organization } from "better-auth/plugins";
+import { tanstackStartCookies } from "better-auth/tanstack-start";
+import { asc, eq } from "drizzle-orm";
+
+import { db } from "./db";
+import { member } from "./db/schema";
+import { env } from "./env";
+
+export const auth = betterAuth({
+  baseURL: env.BETTER_AUTH_URL,
+  secret: env.BETTER_AUTH_SECRET,
+  database: drizzleAdapter(db, { provider: "pg" }),
+  emailAndPassword: {
+    enabled: true,
+    autoSignIn: true,
+    // No email provider wired in Phase 0 — don't gate local signup behind verification.
+    requireEmailVerification: false,
+  },
+  databaseHooks: {
+    session: {
+      create: {
+        before: async (session) => {
+          // Every sign-in creates a fresh session whose activeOrganizationId is
+          // null by default. Seed it from the user's first membership so returning
+          // members land on their dashboard instead of being sent to onboarding.
+          const [firstMembership] = await db
+            .select({ organizationId: member.organizationId })
+            .from(member)
+            .where(eq(member.userId, session.userId))
+            .orderBy(asc(member.createdAt))
+            .limit(1);
+          return {
+            data: {
+              ...session,
+              activeOrganizationId: firstMembership?.organizationId ?? null,
+            },
+          };
+        },
+      },
+    },
+  },
+  plugins: [organization(), tanstackStartCookies()],
+});

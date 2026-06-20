@@ -1,0 +1,5 @@
+# 1. Format + lint staged files (auto-fixed and re-staged by lint-staged)
+lint-staged
+
+# 2. Build the whole project; abort the commit if the build fails
+vite build

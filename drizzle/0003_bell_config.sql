@@ -1,0 +1,2 @@
+DROP TABLE "period" CASCADE;--> statement-breakpoint
+ALTER TABLE "bell_schedule" ADD COLUMN "config" jsonb DEFAULT '{"periodMinutes":45,"days":{"1":{"schoolDay":true,"start":"07:00","end":"15:00","breaks":[]},"2":{"schoolDay":true,"start":"07:00","end":"15:00","breaks":[]},"3":{"schoolDay":true,"start":"07:00","end":"15:00","breaks":[]},"4":{"schoolDay":true,"start":"07:00","end":"15:00","breaks":[]},"5":{"schoolDay":true,"start":"07:00","end":"15:00","breaks":[]},"6":{"schoolDay":false,"start":"07:00","end":"15:00","breaks":[]}}}'::jsonb NOT NULL;

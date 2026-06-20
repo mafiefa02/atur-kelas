@@ -1,0 +1,23 @@
+services:
+  postgres:
+    image: postgres:18-alpine
+    container_name: atur-kelas-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: atur
+      POSTGRES_PASSWORD: atur_dev_pw
+      POSTGRES_DB: atur_kelas
+    ports:
+      - "5432:5432"
+    volumes:
+      # Postgres 18+ expects the mount at /var/lib/postgresql (data lives in a
+      # version-specific subdirectory), not /var/lib/postgresql/data.
+      - atur-kelas-pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U atur -d atur_kelas"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  atur-kelas-pgdata:

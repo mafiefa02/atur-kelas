@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "term_one_active_per_org" ON "term" USING btree ("organization_id") WHERE "term"."is_active";
