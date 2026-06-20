@@ -1,237 +1,92 @@
-Welcome to your new TanStack Start app!
+# atur-kelas
 
-# Getting Started
+Automatic weekly timetable generator for schools. Set up your terms, subjects,
+teachers, classes, and bell schedule, then generate a clash-free _jadwal pelajaran_
+in milliseconds — tweak it, publish it, and share read-only links with students and
+parents.
 
-To run this application:
+Built for the K-12 model (Indonesian SMP/SMA): students stay in a class, teachers
+rotate between them, and teachers are shared across classes — which makes scheduling a
+genuine constraint-satisfaction problem, not a simple grid fill.
 
-```bash
-pnpm install
-pnpm dev
-```
+## Features
 
-# Building For Production
+- **Multi-tenant** — each school is its own organization (email/password auth).
+- **Setup** — terms, grade levels, subjects, teachers, a per-term bell schedule
+  (daily hours + breaks → auto-derived periods), classes, per-grade curriculum with a
+  **live feasibility check**, and per-class teacher assignments.
+- **Generator** — a matching-based solver produces a clash-free, fully-packed
+  timetable; regenerate / try-again for a different layout, click-to-swap editing,
+  pin lessons, then publish.
+- **Public share links** — a read-only per-class timetable at `/p/<token>` (no login),
+  e.g. to drop in a class WhatsApp group.
+- **Export** — print / save-as-PDF, and CSV download.
 
-To build this application for production:
+Full design notes and decisions: [`docs/timetabling-design.md`](docs/timetabling-design.md).
 
-```bash
-pnpm build
-```
+## Tech stack
 
-## Testing
+TanStack Start (React 19) · Postgres + Drizzle ORM · Better Auth (organization plugin)
+· Tailwind v4 with shadcn (Base UI) · Vitest · oxlint + oxfmt.
 
-This project uses [Vitest](https://vitest.dev/) for testing. You can run the tests with:
+## Quick start
 
-```bash
-pnpm test
-```
-
-## Styling
-
-This project uses [Tailwind CSS](https://tailwindcss.com/) for styling.
-
-### Removing Tailwind CSS
-
-If you prefer not to use Tailwind CSS:
-
-1. Remove the demo pages in `src/routes/demo/`
-2. Replace the Tailwind import in `src/styles.css` with your own styles
-3. Remove `tailwindcss()` from the plugins array in `vite.config.ts`
-4. Uninstall the packages: `pnpm add @tailwindcss/vite tailwindcss --dev`
-
-## Deploy with Nitro
-
-This project uses Nitro as a generic server adapter, so it can run on any Node-compatible host.
+Prerequisites: **Node 20+**, **pnpm**, and **Docker** (for local Postgres).
 
 ```bash
-npm run build
-node dist/server/index.mjs
+make setup     # create .env.local, install deps, start Postgres, run migrations
+make fresh     # (optional) reset the DB and seed a ready-to-use demo school
+make dev       # start the app at http://localhost:3000
 ```
 
-The build output is a self-contained Node server. To deploy, push the `dist/` directory to your host (Render, Fly.io, your own VPS, etc.) and run the server command above.
+Demo login (after `make fresh` or `make seed`):
 
-For host-specific presets (Vercel, Netlify, Cloudflare, AWS Lambda, etc.) and tuning, see https://v3.nitro.build/deploy.
+- **Email:** `admin@sekolah.test`
+- **Password:** `password123`
 
-## Setting up Better Auth
+The demo school comes fully configured, so you can go straight to **Timetable →
+Generate** and explore editing, publishing, and share links.
 
-1. Generate and set the `BETTER_AUTH_SECRET` environment variable in your `.env.local`:
+## Common commands
 
-   ```bash
-   pnpm dlx @better-auth/cli secret
-   ```
+| Command                  | Description                                      |
+| ------------------------ | ------------------------------------------------ |
+| `make dev`               | Start the dev server                             |
+| `make fresh`             | Reset the database and seed demo data            |
+| `make seed`              | Seed the demo school                             |
+| `make reset`             | Wipe the database volume and re-apply migrations |
+| `make db-up` / `db-down` | Start / stop the Postgres container              |
+| `make studio`            | Open Drizzle Studio                              |
+| `pnpm test`              | Run tests (Vitest)                               |
+| `pnpm lint`              | Lint (oxlint)                                    |
+| `pnpm generate-routes`   | Regenerate the route tree after adding routes    |
 
-2. Visit the [Better Auth documentation](https://www.better-auth.com) to unlock the full potential of authentication in your app.
+Run `make` (or `make help`) to see everything.
 
-### Adding a Database (Optional)
+## Project layout
 
-Better Auth can work in stateless mode, but to persist user data, add a database:
-
-```typescript
-// src/lib/auth.ts
-import { betterAuth } from "better-auth";
-import { Pool } from "pg";
-
-export const auth = betterAuth({
-  database: new Pool({
-    connectionString: process.env.DATABASE_URL,
-  }),
-  // ... rest of config
-});
+```
+src/
+  routes/              TanStack file-based routes
+    _authed/_app/      authenticated app (sidebar shell): setup + timetable + share
+    p/$token.tsx       public per-class timetable (no auth)
+  lib/
+    server/            server functions — all DB access lives here
+    solver.ts          the timetable solver (pure, matching-based edge-coloring)
+    schedule.ts        bell-schedule config + slot derivation
+    db/                Drizzle client + schema (auth.ts generated, app.ts domain)
+  scripts/seed.ts      dev seed
+drizzle/               SQL migrations (committed)
+docs/                  design notes
 ```
 
-Then run migrations:
+## Development notes
 
-```bash
-pnpm dlx @better-auth/cli migrate
-```
+- **Schema changes:** edit `src/lib/db/schema/`, then `pnpm db:generate` and
+  `pnpm db:migrate`. Never edit the database by hand.
+- **Environment:** `DATABASE_URL` and `BETTER_AUTH_SECRET` live in `.env.local`
+  (see `.env.example`). `make env` generates a secret for you.
+- Commits use [Conventional Commits](https://www.conventionalcommits.org/); the
+  pre-commit hook formats, lints, and runs a production build.
 
-## Routing
-
-This project uses [TanStack Router](https://tanstack.com/router) with file-based routing. Routes are managed as files in `src/routes`.
-
-### Adding A Route
-
-To add a new route to your application just add a new file in the `./src/routes` directory.
-
-TanStack will automatically generate the content of the route file for you.
-
-Now that you have two routes you can use a `Link` component to navigate between them.
-
-### Adding Links
-
-To use SPA (Single Page Application) navigation you will need to import the `Link` component from `@tanstack/react-router`.
-
-```tsx
-import { Link } from "@tanstack/react-router";
-```
-
-Then anywhere in your JSX you can use it like so:
-
-```tsx
-<Link to="/about">About</Link>
-```
-
-This will create a link that will navigate to the `/about` route.
-
-More information on the `Link` component can be found in the [Link documentation](https://tanstack.com/router/v1/docs/framework/react/api/router/linkComponent).
-
-### Using A Layout
-
-In the File Based Routing setup the layout is located in `src/routes/__root.tsx`. Anything you add to the root route will appear in all the routes. The route content will appear in the JSX where you render `{children}` in the `shellComponent`.
-
-Here is an example layout that includes a header:
-
-```tsx
-import { HeadContent, Scripts, createRootRoute } from "@tanstack/react-router";
-
-export const Route = createRootRoute({
-  head: () => ({
-    meta: [
-      { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "My App" },
-    ],
-  }),
-  shellComponent: ({ children }) => (
-    <html lang="en">
-      <head>
-        <HeadContent />
-      </head>
-      <body>
-        <header>
-          <nav>
-            <Link to="/">Home</Link>
-            <Link to="/about">About</Link>
-          </nav>
-        </header>
-        {children}
-        <Scripts />
-      </body>
-    </html>
-  ),
-});
-```
-
-More information on layouts can be found in the [Layouts documentation](https://tanstack.com/router/latest/docs/framework/react/guide/routing-concepts#layouts).
-
-## Server Functions
-
-TanStack Start provides server functions that allow you to write server-side code that seamlessly integrates with your client components.
-
-```tsx
-import { createServerFn } from "@tanstack/react-start";
-
-const getServerTime = createServerFn({
-  method: "GET",
-}).handler(async () => {
-  return new Date().toISOString();
-});
-
-// Use in a component
-function MyComponent() {
-  const [time, setTime] = useState("");
-
-  useEffect(() => {
-    getServerTime().then(setTime);
-  }, []);
-
-  return <div>Server time: {time}</div>;
-}
-```
-
-## API Routes
-
-You can create API routes by using the `server` property in your route definitions:
-
-```tsx
-import { createFileRoute } from "@tanstack/react-router";
-import { json } from "@tanstack/react-start";
-
-export const Route = createFileRoute("/api/hello")({
-  server: {
-    handlers: {
-      GET: () => json({ message: "Hello, World!" }),
-    },
-  },
-});
-```
-
-## Data Fetching
-
-There are multiple ways to fetch data in your application. You can use TanStack Query to fetch data from a server. But you can also use the `loader` functionality built into TanStack Router to load the data for a route before it's rendered.
-
-For example:
-
-```tsx
-import { createFileRoute } from "@tanstack/react-router";
-
-export const Route = createFileRoute("/people")({
-  loader: async () => {
-    const response = await fetch("https://swapi.dev/api/people");
-    return response.json();
-  },
-  component: PeopleComponent,
-});
-
-function PeopleComponent() {
-  const data = Route.useLoaderData();
-  return (
-    <ul>
-      {data.results.map((person) => (
-        <li key={person.name}>{person.name}</li>
-      ))}
-    </ul>
-  );
-}
-```
-
-Loaders simplify your data fetching logic dramatically. Check out more information in the [Loader documentation](https://tanstack.com/router/latest/docs/framework/react/guide/data-loading#loader-parameters).
-
-# Demo files
-
-Files prefixed with `demo` can be safely deleted. They are there to provide a starting point for you to play around with the features you've installed.
-
-# Learn More
-
-You can learn more about all of the offerings from TanStack in the [TanStack documentation](https://tanstack.com).
-
-For TanStack Start specific documentation, visit [TanStack Start](https://tanstack.com/start).
+See [`CLAUDE.md`](CLAUDE.md) for architecture conventions and gotchas.
