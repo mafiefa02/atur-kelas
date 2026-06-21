@@ -5,16 +5,15 @@ import {
   CaretUpIcon,
   InfoIcon,
   PlusIcon,
-  TrashIcon,
   WarningCircleIcon,
 } from "@phosphor-icons/react";
 import { useRouter } from "@tanstack/react-router";
 import { type FormEvent, useState } from "react";
 
+import { BellScheduleEditor } from "#/components/bell-schedule-editor.tsx";
 import { Badge } from "#/components/ui/badge.tsx";
 import { Button } from "#/components/ui/button.tsx";
 import { Card, CardContent } from "#/components/ui/card.tsx";
-import { Checkbox } from "#/components/ui/checkbox.tsx";
 import { Input } from "#/components/ui/input.tsx";
 import { Label } from "#/components/ui/label.tsx";
 import {
@@ -24,14 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "#/components/ui/select.tsx";
-import {
-  type BellConfig,
-  type DayConfig,
-  SCHOOL_DAYS,
-  computeDaySlots,
-  defaultDay,
-  totalTeachingSlots,
-} from "#/lib/schedule.ts";
+import { type BellConfig, SCHOOL_DAYS, totalTeachingSlots } from "#/lib/schedule.ts";
 import { setClassAssignments } from "#/lib/server/assignments.ts";
 import { saveBellSchedule } from "#/lib/server/bell-schedule.ts";
 import { createClass, deleteClass } from "#/lib/server/classes.ts";
@@ -514,32 +506,11 @@ export function TeachersStep({ data, onBack, onNext }: StepProps) {
 
 /* ---- 5 · Bell schedule --------------------------------------------------- */
 
-const getDay = (c: BellConfig, n: number): DayConfig => c.days[String(n)] ?? defaultDay(false);
-
 export function BellStep({ data, onBack, onNext }: StepProps) {
   const router = useRouter();
   const [config, setConfig] = useState<BellConfig>(data.bellConfig);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  function patchDay(n: number, patch: Partial<DayConfig>) {
-    setConfig((c) => ({ ...c, days: { ...c.days, [n]: { ...getDay(c, n), ...patch } } }));
-  }
-  function addBreak(n: number) {
-    patchDay(n, { breaks: [...getDay(config, n).breaks, { start: "", end: "", label: "" }] });
-  }
-  function patchBreak(
-    n: number,
-    i: number,
-    patch: Partial<{ start: string; end: string; label: string }>,
-  ) {
-    patchDay(n, {
-      breaks: getDay(config, n).breaks.map((b, j) => (j === i ? { ...b, ...patch } : b)),
-    });
-  }
-  function removeBreak(n: number, i: number) {
-    patchDay(n, { breaks: getDay(config, n).breaks.filter((_, j) => j !== i) });
-  }
 
   async function onContinue() {
     setPending(true);
@@ -548,7 +519,7 @@ export function BellStep({ data, onBack, onNext }: StepProps) {
       periodMinutes: config.periodMinutes,
       days: Object.fromEntries(
         SCHOOL_DAYS.map(({ n }) => {
-          const d = getDay(config, n);
+          const d = config.days[String(n)] ?? { schoolDay: false, start: "", end: "", breaks: [] };
           return [String(n), { ...d, breaks: d.breaks.filter((b) => b.start && b.end) }];
         }),
       ),
@@ -582,145 +553,20 @@ export function BellStep({ data, onBack, onNext }: StepProps) {
         </>
       }
     >
-      <div className="mb-4 flex items-start justify-between gap-5">
-        <div>
-          <h2 className="font-heading text-[22px] font-semibold tracking-tight">Bell schedule</h2>
-          <p className="mt-1.5 max-w-[520px] text-sm leading-relaxed text-muted-foreground">
-            Set the daily hours and breaks. The day auto-fills with back-to-back teaching slots,
-            skipping breaks.
-          </p>
-        </div>
-        <div className="flex-none text-right">
-          <div className="text-xs text-muted-foreground">Weekly teaching slots</div>
-          <div className="font-heading text-2xl font-bold tracking-tight text-primary">
-            {weekly}
-          </div>
-        </div>
-      </div>
-
-      <div className="mb-4 flex items-center gap-3 rounded-2xl bg-muted px-4 py-3">
-        <span className="font-medium">Period length</span>
-        <Input
-          type="number"
-          min={5}
-          max={240}
-          value={config.periodMinutes}
-          onChange={(e) => setConfig((c) => ({ ...c, periodMinutes: Number(e.target.value) }))}
-          className="w-20 bg-card text-center"
-        />
-        <span className="text-[13px] text-muted-foreground">minutes / lesson</span>
+      <div className="mb-4">
+        <h2 className="font-heading text-[22px] font-semibold tracking-tight">Bell schedule</h2>
+        <p className="mt-1.5 max-w-[520px] text-sm leading-relaxed text-muted-foreground">
+          Set the daily hours and breaks. The day auto-fills with back-to-back teaching slots,
+          skipping breaks.
+        </p>
       </div>
 
       {error ? <p className="mb-3 text-sm text-destructive">{error}</p> : null}
 
-      <div className="grid gap-3 md:grid-cols-3">
-        {SCHOOL_DAYS.map(({ n, label }) => {
-          const day = getDay(config, n);
-          const slots = computeDaySlots(day, config.periodMinutes);
-          if (!day.schoolDay) {
-            return (
-              <Card
-                key={n}
-                size="sm"
-                className="items-center justify-center border border-dashed border-border bg-muted shadow-none ring-0"
-              >
-                <CardContent className="flex items-center gap-2 opacity-70">
-                  <Checkbox
-                    checked={false}
-                    onCheckedChange={() => patchDay(n, { schoolDay: true })}
-                  />
-                  <span className="font-medium text-muted-foreground">{label}</span>
-                  <span className="text-xs text-muted-foreground">· day off</span>
-                </CardContent>
-              </Card>
-            );
-          }
-          return (
-            <Card
-              key={n}
-              size="sm"
-            >
-              <CardContent className="flex flex-col gap-2.5">
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    checked
-                    onCheckedChange={() => patchDay(n, { schoolDay: false })}
-                  />
-                  <span className="font-heading text-[15px] font-semibold">{label}</span>
-                  <Badge
-                    variant="secondary"
-                    className="ml-auto"
-                  >
-                    {slots.length} slots
-                  </Badge>
-                </div>
-                <div className="flex gap-2">
-                  <div className="flex-1">
-                    <div className="mb-1 text-[11px] text-muted-foreground">Start</div>
-                    <Input
-                      type="time"
-                      value={day.start}
-                      onChange={(e) => patchDay(n, { start: e.target.value })}
-                      className="font-mono text-[13px]"
-                    />
-                  </div>
-                  <div className="flex-1">
-                    <div className="mb-1 text-[11px] text-muted-foreground">End</div>
-                    <Input
-                      type="time"
-                      value={day.end}
-                      onChange={(e) => patchDay(n, { end: e.target.value })}
-                      className="font-mono text-[13px]"
-                    />
-                  </div>
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  {day.breaks.map((b, i) => (
-                    <div
-                      key={i}
-                      className="flex items-center gap-1.5"
-                    >
-                      <Input
-                        type="time"
-                        value={b.start}
-                        onChange={(e) => patchBreak(n, i, { start: e.target.value })}
-                        className="w-[5.5rem] bg-muted font-mono text-xs"
-                      />
-                      <span className="text-muted-foreground">–</span>
-                      <Input
-                        type="time"
-                        value={b.end}
-                        onChange={(e) => patchBreak(n, i, { end: e.target.value })}
-                        className="w-[5.5rem] bg-muted font-mono text-xs"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => removeBreak(n, i)}
-                        aria-label="Remove break"
-                        className="px-1 text-muted-foreground hover:text-destructive"
-                      >
-                        <TrashIcon className="size-3.5" />
-                      </button>
-                    </div>
-                  ))}
-                  <button
-                    type="button"
-                    onClick={() => addBreak(n)}
-                    className="self-start text-xs text-primary hover:underline"
-                  >
-                    + Add break (istirahat)
-                  </button>
-                </div>
-                <div className="font-mono text-[11px] leading-relaxed text-muted-foreground">
-                  {slots.length === 0
-                    ? "No slots — check the hours."
-                    : slots.map((s) => s.start).join(" · ")}
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
+      <BellScheduleEditor
+        config={config}
+        onConfigChange={setConfig}
+      />
     </StepLayout>
   );
 }
