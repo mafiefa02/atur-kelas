@@ -19,9 +19,10 @@ import {
 } from "#/lib/db/schema/app.ts";
 import { organization } from "#/lib/db/schema/auth.ts";
 import { type PublishedSnapshot, buildSlots } from "#/lib/schedule.ts";
-import { type LessonInput, checkFeasibility } from "#/lib/solver.ts";
+import type { LessonInput } from "#/lib/solver.ts";
 
 import { loadBellConfig } from "./bell-schedule-data.ts";
+import { summarize } from "./coverage.ts";
 
 export type Loaded = Awaited<ReturnType<typeof loadAll>>;
 
@@ -89,56 +90,32 @@ export function buildLessons(loaded: Loaded): LessonInput[] {
   return lessons;
 }
 
+// The generate gate. Derives its blocker strings from the shared `summarize` so the
+// dashboard's per-class/per-teacher view and this gate can never disagree.
 export function computeReadiness(loaded: Loaded) {
-  const T = loaded.slots.length;
+  const { slotCount: T, classes, teachers } = summarize(loaded);
   const blockers: string[] = [];
   if (T === 0) {
     blockers.push("The bell schedule has no teaching slots — set it up first.");
     return { ok: false, slotCount: T, blockers };
   }
-  const assignedByClass = new Map<string, number>();
-  const subjectsByClass = new Map<string, Set<string>>();
-  for (const a of loaded.assigns) {
-    assignedByClass.set(a.classGroupId, (assignedByClass.get(a.classGroupId) ?? 0) + a.weeklyCount);
-    const set = subjectsByClass.get(a.classGroupId) ?? new Set();
-    set.add(a.subjectId);
-    subjectsByClass.set(a.classGroupId, set);
-  }
-  const currByGrade = new Map<string, { subjectId: string; subjectName: string }[]>();
-  for (const c of loaded.curriculum) {
-    if (c.weeklyCount <= 0) continue;
-    const arr = currByGrade.get(c.gradeLevelId) ?? [];
-    arr.push({ subjectId: c.subjectId, subjectName: c.subjectName });
-    currByGrade.set(c.gradeLevelId, arr);
-  }
-  for (const cls of loaded.classes) {
-    const assigned = assignedByClass.get(cls.id) ?? 0;
-    const have = subjectsByClass.get(cls.id) ?? new Set();
-    const need = currByGrade.get(cls.gradeLevelId) ?? [];
-    const missing = need.filter((s) => !have.has(s.subjectId)).map((s) => s.subjectName);
-    if (missing.length > 0) {
-      blockers.push(`${cls.gradeName} ${cls.name}: no teacher for ${missing.join(", ")}.`);
-    } else if (assigned !== T) {
+  for (const c of classes) {
+    if (c.missingSubjects.length > 0) {
       blockers.push(
-        `${cls.gradeName} ${cls.name}: ${assigned}/${T} weekly slots assigned (${
-          assigned < T ? `${T - assigned} short` : `${assigned - T} over`
+        `${c.gradeName} ${c.className}: no teacher for ${c.missingSubjects.join(", ")}.`,
+      );
+    } else if (c.assigned !== T) {
+      blockers.push(
+        `${c.gradeName} ${c.className}: ${c.assigned}/${T} weekly slots assigned (${
+          c.assigned < T ? `${T - c.assigned} short` : `${c.assigned - T} over`
         }).`,
       );
     }
   }
-  const usedTeachers = [...new Set(loaded.assigns.map((a) => a.teacherId))];
-  const feas = checkFeasibility({
-    slots: loaded.slots,
-    classIds: loaded.classes.map((c) => c.id),
-    teacherIds: usedTeachers,
-    lessons: buildLessons(loaded),
-    seed: 1,
-  });
-  const teacherName = new Map(loaded.teachers.map((t) => [t.id, t.name]));
-  for (const o of feas.overloadedTeachers) {
-    blockers.push(
-      `${teacherName.get(o.teacherId) ?? "A teacher"} is overloaded: ${o.load}/${T} weekly periods.`,
-    );
+  for (const t of teachers) {
+    if (t.overloaded) {
+      blockers.push(`${t.name} is overloaded: ${t.load}/${T} weekly periods.`);
+    }
   }
   return { ok: blockers.length === 0, slotCount: T, blockers };
 }
@@ -218,55 +195,4 @@ export async function buildPublishedSnapshot(
     })),
     classes,
   };
-}
-
-// After a fresh solve, move each pinned lesson back into its pinned cell via a
-// within-class swap (clash-checked), so regenerate preserves pins. Returns the set of
-// cell keys that ended up pinned (un-honorable pins are silently dropped). Bounded.
-export function applyPins(
-  placements: { classId: string; dayOfWeek: number; slotIndex: number; assignmentId: string }[],
-  pinned: { classGroupId: string; dayOfWeek: number; slotIndex: number; assignmentId: string }[],
-  teacherByAssignment: Map<string, string>,
-): Set<string> {
-  const cellKey = (c: string, d: number, s: number) => `${c}:${d}:${s}`;
-  const occKey = (t: string, d: number, s: number) => `${t}:${d}:${s}`;
-  const byCell = new Map<string, (typeof placements)[number]>();
-  const occ = new Map<string, string>(); // teacher@cell -> classId
-  for (const p of placements) {
-    byCell.set(cellKey(p.classId, p.dayOfWeek, p.slotIndex), p);
-    const t = teacherByAssignment.get(p.assignmentId);
-    if (t) occ.set(occKey(t, p.dayOfWeek, p.slotIndex), p.classId);
-  }
-  const pinnedKeys = new Set<string>();
-  for (const pin of pinned) {
-    const tgt = byCell.get(cellKey(pin.classGroupId, pin.dayOfWeek, pin.slotIndex));
-    const tNew = teacherByAssignment.get(pin.assignmentId);
-    if (!tgt || !tNew) continue; // cell/assignment no longer exists
-    if (tgt.assignmentId === pin.assignmentId) {
-      pinnedKeys.add(cellKey(pin.classGroupId, pin.dayOfWeek, pin.slotIndex));
-      continue;
-    }
-    const src = placements.find(
-      (p) => p.classId === pin.classGroupId && p.assignmentId === pin.assignmentId,
-    );
-    if (!src) continue;
-    const tOld = teacherByAssignment.get(tgt.assignmentId);
-    const tNewClash = occ.get(occKey(tNew, tgt.dayOfWeek, tgt.slotIndex));
-    const tOldClash = tOld ? occ.get(occKey(tOld, src.dayOfWeek, src.slotIndex)) : undefined;
-    if (
-      (tNewClash && tNewClash !== pin.classGroupId) ||
-      (tOldClash && tOldClash !== pin.classGroupId)
-    ) {
-      continue; // can't honor without a teacher clash
-    }
-    if (tOld) occ.delete(occKey(tOld, tgt.dayOfWeek, tgt.slotIndex));
-    occ.delete(occKey(tNew, src.dayOfWeek, src.slotIndex));
-    const tmp = tgt.assignmentId;
-    tgt.assignmentId = src.assignmentId;
-    src.assignmentId = tmp;
-    occ.set(occKey(tNew, tgt.dayOfWeek, tgt.slotIndex), pin.classGroupId);
-    if (tOld) occ.set(occKey(tOld, src.dayOfWeek, src.slotIndex), pin.classGroupId);
-    pinnedKeys.add(cellKey(pin.classGroupId, pin.dayOfWeek, pin.slotIndex));
-  }
-  return pinnedKeys;
 }
