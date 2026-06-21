@@ -11,3 +11,6 @@ dist-ssr
 .vinxi
 __unconfig*
 todos.json
+
+# Claude Design handoff bundle (HTML/CSS prototypes) — reference only, not source
+improving-app-onboarding-flow
