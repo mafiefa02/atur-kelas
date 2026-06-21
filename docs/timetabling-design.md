@@ -18,13 +18,23 @@ view (all classes, page-breaks → browser Save-as-PDF), Print buttons on the ti
 and public pages (`print:hidden` chrome), and a CSV download (long-format, opens in
 Excel). Phase 4 pending.
 
+> **Kurikulum Merdeka alignment (2026-06-21):** this app targets the **intrakurikuler**
+> timetable for fixed-rombel jenjang (SD / SMP / SMA kelas X). Kokurikuler/P5,
+> ekstrakurikuler, and SMA XI–XII _mata pelajaran pilihan_ are deliberately out of scope —
+> see `docs/adr/0001` and `CONTEXT.md`. The `curriculum` entity was renamed to
+> `subjectHours` (it holds per-grade weekly _alokasi waktu_, not Capaian Pembelajaran); the
+> user-facing feature stays labelled "Curriculum". The "K-12" framing below predates this
+> and refers to the same fixed-rombel model. Known pre-existing limitation: a
+> **Pendidikan Agama** subject that splits by religion (parallel teachers in one
+> rombel-slot) can't be represented by the one-subject-per-cell grid.
+
 ## 1. The problem
 
 Schools re-build their weekly lesson timetable (_jadwal pelajaran_) by hand every
 semester. We automate the generation of a clash-free weekly timetable and give the
 admin a draft they can tweak, then publish.
 
-This is the classic **class–teacher timetabling problem** (K-12 variant). Because
+This is the classic **class–teacher timetabling problem** (fixed-rombel variant). Because
 teachers are shared across classes, it is a genuine constraint-satisfaction problem,
 **not** a simple grid-fill — but with only the two hard constraints below it stays
 tractable (its hard core is a bipartite edge-coloring; König's theorem guarantees a
@@ -33,7 +43,8 @@ slots).
 
 ## 2. Model of the world
 
-- **K-12**: students stay in one room (a _kelas_ / class group); teachers rotate to them.
+- **Fixed rombel** (SD/SMP/SMA-X under Kurikulum Merdeka): students stay in one room
+  (a _rombel_ / class group); teachers rotate to them.
 - **Multiple classes, shared teachers**: one teacher teaches a subject to several classes.
 - **Teacher→subject→class assignment is INPUT.** The admin states the facts ("Pak Budi
   teaches Math to 7A 5×/wk, 7B 5×/wk"). The system only _places_ those lessons in time.

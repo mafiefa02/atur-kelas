@@ -1,13 +1,22 @@
 # CLAUDE.md
 
 Guidance for agents working in this repo. Keep changes consistent with these
-conventions. Full design rationale lives in `docs/timetabling-design.md`.
+conventions. Full design rationale lives in `docs/timetabling-design.md`; domain glossary
+in `CONTEXT.md`; scope decisions in `docs/adr/`.
 
 ## What this is
 
-**atur-kelas** — a multi-tenant SaaS that auto-generates weekly school timetables
-(K-12 / Indonesian SMP–SMA). One school = one Better Auth **organization**; nearly all
-data is scoped to the organization's **active term**.
+**atur-kelas** — a multi-tenant SaaS that auto-generates the weekly **intrakurikuler**
+timetable (_jadwal pelajaran_) for Indonesian schools under **Kurikulum Merdeka**, for the
+fixed-rombel jenjang **SD / SMP / SMA kelas X**. One school = one Better Auth
+**organization**; nearly all data is scoped to the organization's **active term**
+(= one semester).
+
+Out of scope (see `docs/adr/0001`): **kokurikuler / P5** and **ekstrakurikuler** (run off
+the weekly jadwal), and **SMA kelas XI–XII mata pelajaran pilihan** (moving-class — breaks
+the König-tractable model). Known pre-existing limitation: **Pendidikan Agama** that splits
+by religion (parallel teachers in one rombel-slot) can't be represented by the
+one-subject-per-cell grid.
 
 ## Stack
 
