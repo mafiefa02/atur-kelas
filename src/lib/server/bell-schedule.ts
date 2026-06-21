@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { eq } from "drizzle-orm";
 
 import { db } from "#/lib/db";
-import { bellSchedule } from "#/lib/db/schema";
+import { bellSchedule } from "#/lib/db/schema/app.ts";
 import {
   type BellConfig,
   type DayConfig,

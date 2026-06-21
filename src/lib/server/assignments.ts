@@ -9,7 +9,7 @@ import {
   gradeLevel,
   subject,
   teacher,
-} from "#/lib/db/schema";
+} from "#/lib/db/schema/app.ts";
 
 import { loadWeeklyTeachingSlots } from "./bell-schedule-data.ts";
 import { requireActiveTerm } from "./context.ts";

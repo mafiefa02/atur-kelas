@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { and, asc, eq, inArray } from "drizzle-orm";
 
 import { db } from "#/lib/db";
-import { subjectHours, gradeLevel, subject } from "#/lib/db/schema";
+import { subjectHours, gradeLevel, subject } from "#/lib/db/schema/app.ts";
 
 import { loadWeeklyTeachingSlots } from "./bell-schedule-data.ts";
 import { requireActiveTerm } from "./context.ts";

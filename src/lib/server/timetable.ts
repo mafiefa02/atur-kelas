@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { and, eq } from "drizzle-orm";
 
 import { db } from "#/lib/db";
-import { assignment, placement, subject, teacher, timetable } from "#/lib/db/schema";
+import { assignment, placement, subject, teacher, timetable } from "#/lib/db/schema/app.ts";
 import { solve } from "#/lib/solver.ts";
 
 import { requireActiveTerm } from "./context.ts";

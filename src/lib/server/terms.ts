@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { and, desc, eq } from "drizzle-orm";
 
 import { db } from "#/lib/db";
-import { term } from "#/lib/db/schema";
+import { term } from "#/lib/db/schema/app.ts";
 
 import { requireOrgContext } from "./context.ts";
 

@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { and, asc, eq } from "drizzle-orm";
 
 import { db } from "#/lib/db";
-import { gradeLevel } from "#/lib/db/schema";
+import { gradeLevel } from "#/lib/db/schema/app.ts";
 
 import { isForeignKeyViolation, requireOrgContext } from "./context.ts";
 

@@ -6,7 +6,7 @@
 import { eq } from "drizzle-orm";
 
 import { db } from "#/lib/db";
-import { bellSchedule } from "#/lib/db/schema";
+import { bellSchedule } from "#/lib/db/schema/app.ts";
 import { type BellConfig, DEFAULT_BELL_CONFIG, totalTeachingSlots } from "#/lib/schedule.ts";
 
 // The active bell config for a term, falling back to the default when none is saved yet.

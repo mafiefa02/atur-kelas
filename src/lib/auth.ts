@@ -5,7 +5,7 @@ import { tanstackStartCookies } from "better-auth/tanstack-start";
 import { asc, eq } from "drizzle-orm";
 
 import { db } from "./db";
-import { member } from "./db/schema";
+import { member } from "./db/schema/auth.ts";
 import { env } from "./env";
 
 export const auth = betterAuth({

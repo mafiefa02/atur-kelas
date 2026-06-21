@@ -12,14 +12,12 @@ import {
   bellSchedule,
   classGroup,
   gradeLevel,
-  member,
-  organization,
   subject,
   subjectHours,
   teacher,
   term,
-  user,
-} from "../lib/db/schema/index.ts";
+} from "../lib/db/schema/app.ts";
+import { member, organization, user } from "../lib/db/schema/auth.ts";
 import { type BellConfig, totalTeachingSlots } from "../lib/schedule.ts";
 
 const EMAIL = "admin@sekolah.test";

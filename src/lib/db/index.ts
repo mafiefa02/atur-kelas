@@ -2,7 +2,10 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 
 import { env } from "../env";
-import * as schema from "./schema";
+import * as appSchema from "./schema/app";
+import * as authSchema from "./schema/auth";
+
+const schema = { ...appSchema, ...authSchema };
 
 // Reuse one postgres client across HMR reloads in dev so we don't exhaust connections.
 const globalForDb = globalThis as unknown as {

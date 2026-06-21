@@ -11,13 +11,13 @@ import {
   classGroup,
   subjectHours,
   gradeLevel,
-  organization,
   placement,
   subject,
   teacher,
   term,
   timetable,
-} from "#/lib/db/schema";
+} from "#/lib/db/schema/app.ts";
+import { organization } from "#/lib/db/schema/auth.ts";
 import { type PublishedSnapshot, buildSlots } from "#/lib/schedule.ts";
 import { type LessonInput, checkFeasibility } from "#/lib/solver.ts";
 

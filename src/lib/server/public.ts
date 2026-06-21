@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { eq } from "drizzle-orm";
 
 import { db } from "#/lib/db";
-import { classGroup, timetable } from "#/lib/db/schema";
+import { classGroup, timetable } from "#/lib/db/schema/app.ts";
 
 // PUBLIC (no auth): the share token is the capability. Reads the denormalized snapshot
 // for one class only — no org/other-class data, no joins. Keep all db use inside the

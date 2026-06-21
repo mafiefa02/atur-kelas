@@ -4,7 +4,7 @@ import { and, eq } from "drizzle-orm";
 
 import { auth } from "#/lib/auth.ts";
 import { db } from "#/lib/db";
-import { term } from "#/lib/db/schema";
+import { term } from "#/lib/db/schema/app.ts";
 
 // Re-derives the tenant scope from the session on the SERVER. Never accept an
 // organizationId/termId from the client for scoping — always go through these so
