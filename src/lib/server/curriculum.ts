@@ -2,14 +2,14 @@ import { createServerFn } from "@tanstack/react-start";
 import { and, asc, eq, inArray } from "drizzle-orm";
 
 import { db } from "#/lib/db";
-import { bellSchedule, curriculumEntry, gradeLevel, subject } from "#/lib/db/schema";
-import { DEFAULT_BELL_CONFIG, totalTeachingSlots } from "#/lib/schedule.ts";
+import { curriculumEntry, gradeLevel, subject } from "#/lib/db/schema";
 
+import { loadWeeklyTeachingSlots } from "./bell-schedule-data.ts";
 import { requireActiveTerm } from "./context.ts";
 
 export const getCurriculum = createServerFn({ method: "GET" }).handler(async () => {
   const { term, organizationId } = await requireActiveTerm();
-  const [grades, subjects, entries, schedule] = await Promise.all([
+  const [grades, subjects, entries, weeklyTeachingSlots] = await Promise.all([
     db
       .select()
       .from(gradeLevel)
@@ -33,13 +33,8 @@ export const getCurriculum = createServerFn({ method: "GET" }).handler(async () 
           eq(curriculumEntry.termId, term.id),
         ),
       ),
-    db
-      .select({ config: bellSchedule.config })
-      .from(bellSchedule)
-      .where(eq(bellSchedule.termId, term.id))
-      .limit(1),
+    loadWeeklyTeachingSlots(term.id),
   ]);
-  const weeklyTeachingSlots = totalTeachingSlots(schedule[0]?.config ?? DEFAULT_BELL_CONFIG);
   return { grades, subjects, entries, weeklyTeachingSlots };
 });
 

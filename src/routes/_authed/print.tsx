@@ -12,6 +12,9 @@ export const Route = createFileRoute("/_authed/print")({
 
 type View = Awaited<ReturnType<typeof getTimetableView>>;
 
+// Shared empty map for classes with no placements — avoids a throwaway allocation per class.
+const EMPTY_CELLS: Map<string, View["placements"][number]> = new Map();
+
 function PrintPage() {
   const { termName, classes, slots, placements, timetable } = Route.useLoaderData();
 
@@ -60,7 +63,7 @@ function PrintPage() {
               maxSlot={maxSlot}
               rowTime={rowTime}
               hasSlot={hasSlot}
-              byCell={cellsByClass.get(c.id) ?? new Map()}
+              byCell={cellsByClass.get(c.id) ?? EMPTY_CELLS}
             />
           </section>
         ))

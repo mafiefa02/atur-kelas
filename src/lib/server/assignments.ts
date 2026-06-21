@@ -4,20 +4,19 @@ import { and, asc, eq, inArray } from "drizzle-orm";
 import { db } from "#/lib/db";
 import {
   assignment,
-  bellSchedule,
   classGroup,
   curriculumEntry,
   gradeLevel,
   subject,
   teacher,
 } from "#/lib/db/schema";
-import { DEFAULT_BELL_CONFIG, totalTeachingSlots } from "#/lib/schedule.ts";
 
+import { loadWeeklyTeachingSlots } from "./bell-schedule-data.ts";
 import { requireActiveTerm } from "./context.ts";
 
 export const getAssignmentsData = createServerFn({ method: "GET" }).handler(async () => {
   const { term, organizationId } = await requireActiveTerm();
-  const [classes, teachers, curriculum, assignments, schedule] = await Promise.all([
+  const [classes, teachers, curriculum, assignments, weeklyTeachingSlots] = await Promise.all([
     db
       .select({
         id: classGroup.id,
@@ -60,13 +59,8 @@ export const getAssignmentsData = createServerFn({ method: "GET" }).handler(asyn
       })
       .from(assignment)
       .where(and(eq(assignment.organizationId, organizationId), eq(assignment.termId, term.id))),
-    db
-      .select({ config: bellSchedule.config })
-      .from(bellSchedule)
-      .where(eq(bellSchedule.termId, term.id))
-      .limit(1),
+    loadWeeklyTeachingSlots(term.id),
   ]);
-  const weeklyTeachingSlots = totalTeachingSlots(schedule[0]?.config ?? DEFAULT_BELL_CONFIG);
   return { classes, teachers, curriculum, assignments, weeklyTeachingSlots };
 });
 
