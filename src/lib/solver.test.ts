@@ -80,7 +80,6 @@ describe("solver", () => {
     const start = performance.now();
     const { placements } = solve(input);
     const ms = performance.now() - start;
-    // eslint-disable-next-line no-console
     console.log(`[bench] tight 20×20×40 (${placements.length} placements): ${ms.toFixed(1)}ms`);
     expect(validatePlacements(input, placements)).toEqual([]);
     expect(ms).toBeLessThan(5000);
@@ -91,7 +90,6 @@ describe("solver", () => {
     const start = performance.now();
     const { placements } = solve(input);
     const ms = performance.now() - start;
-    // eslint-disable-next-line no-console
     console.log(`[bench] tight 40×40×40 (${placements.length} placements): ${ms.toFixed(1)}ms`);
     expect(validatePlacements(input, placements)).toEqual([]);
     expect(ms).toBeLessThan(8000);
