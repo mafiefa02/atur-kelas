@@ -1,7 +1,7 @@
 import { Link, createFileRoute } from "@tanstack/react-router";
 
 import { Button } from "#/components/ui/button.tsx";
-import { SCHOOL_DAYS } from "#/lib/schedule.ts";
+import { buildGridFrame, dayLabel } from "#/lib/schedule.ts";
 import { getTimetableView } from "#/lib/server/timetable.ts";
 import { cn } from "#/lib/utils.ts";
 
@@ -10,15 +10,19 @@ export const Route = createFileRoute("/_authed/print")({
   component: PrintPage,
 });
 
-const dayLabel = (n: number) => SCHOOL_DAYS.find((d) => d.n === n)?.label ?? `Day ${n}`;
-const hhmm = (t: string) => t.slice(0, 5);
-
 type View = Awaited<ReturnType<typeof getTimetableView>>;
 
 function PrintPage() {
   const { termName, classes, slots, placements, timetable } = Route.useLoaderData();
 
-  const dayNums = [...new Set(slots.map((s) => s.dayOfWeek))].sort((a, b) => a - b);
+  const { dayNums, maxSlot, rowTime, hasSlot } = buildGridFrame(slots);
+  // Group placements by class once instead of re-scanning every placement per class grid.
+  const cellsByClass = new Map<string, Map<string, View["placements"][number]>>();
+  for (const p of placements) {
+    let m = cellsByClass.get(p.classGroupId);
+    if (!m) cellsByClass.set(p.classGroupId, (m = new Map()));
+    m.set(`${p.dayOfWeek}:${p.slotIndex}`, p);
+  }
 
   return (
     <div className="mx-auto max-w-5xl p-6">
@@ -52,10 +56,11 @@ function PrintPage() {
             </h2>
             <p className="mb-2 text-xs text-muted-foreground">{termName}</p>
             <ClassGrid
-              slots={slots}
               dayNums={dayNums}
-              cells={placements}
-              classId={c.id}
+              maxSlot={maxSlot}
+              rowTime={rowTime}
+              hasSlot={hasSlot}
+              byCell={cellsByClass.get(c.id) ?? new Map()}
             />
           </section>
         ))
@@ -65,28 +70,18 @@ function PrintPage() {
 }
 
 function ClassGrid({
-  slots,
   dayNums,
-  cells,
-  classId,
+  maxSlot,
+  rowTime,
+  hasSlot,
+  byCell,
 }: {
-  slots: View["slots"];
   dayNums: number[];
-  cells: View["placements"];
-  classId: string;
+  maxSlot: number;
+  rowTime: Map<number, string>;
+  hasSlot: Set<string>;
+  byCell: Map<string, View["placements"][number]>;
 }) {
-  const maxSlot = slots.reduce((m, s) => Math.max(m, s.slotIndex + 1), 0);
-  const rowTime = new Map<number, string>();
-  for (const s of slots) {
-    if (!rowTime.has(s.slotIndex)) rowTime.set(s.slotIndex, `${hhmm(s.start)}–${hhmm(s.end)}`);
-  }
-  const hasSlot = new Set(slots.map((s) => `${s.dayOfWeek}:${s.slotIndex}`));
-  const byCell = new Map(
-    cells
-      .filter((c) => c.classGroupId === classId)
-      .map((c) => [`${c.dayOfWeek}:${c.slotIndex}`, c]),
-  );
-
   return (
     <table className="w-full border-collapse text-xs">
       <thead>

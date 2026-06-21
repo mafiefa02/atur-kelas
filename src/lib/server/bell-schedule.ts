@@ -8,6 +8,7 @@ import {
   type DayConfig,
   DEFAULT_BELL_CONFIG,
   SCHOOL_DAYS,
+  defaultDay,
   toMinutes,
 } from "#/lib/schedule.ts";
 
@@ -49,7 +50,7 @@ function validateConfig(input: BellConfig): BellConfig {
   for (const { n, label } of SCHOOL_DAYS) {
     const d = input?.days?.[String(n)];
     if (!d) {
-      days[String(n)] = { schoolDay: false, start: "07:00", end: "15:00", breaks: [] };
+      days[String(n)] = defaultDay(false);
       continue;
     }
     if (!isHHMM(d.start) || !isHHMM(d.end)) {

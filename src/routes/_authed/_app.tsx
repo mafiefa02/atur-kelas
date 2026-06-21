@@ -26,8 +26,6 @@ const ENABLED_NAV = [
   { to: "/assignments", label: "Assignments" },
 ] as const;
 
-const COMING_SOON: string[] = [];
-
 export const Route = createFileRoute("/_authed/_app")({
   beforeLoad: ({ context }) => {
     if (!context.session?.activeOrganizationId) {
@@ -73,20 +71,6 @@ function AppLayout() {
             >
               {item.label}
             </Link>
-          ))}
-          {COMING_SOON.length > 0 ? (
-            <p className="mt-3 px-3 text-xs font-medium tracking-wide text-muted-foreground/60 uppercase">
-              Coming soon
-            </p>
-          ) : null}
-          {COMING_SOON.map((label) => (
-            <span
-              key={label}
-              className="cursor-not-allowed rounded-lg px-3 py-2 text-sm text-muted-foreground/40"
-              title="Coming soon"
-            >
-              {label}
-            </span>
           ))}
         </nav>
         <Button

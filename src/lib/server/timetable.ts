@@ -56,30 +56,19 @@ export const generateTimetable = createServerFn({ method: "POST" })
     const pinnedKeys = applyPins(result.placements, pinned, teacherByAssignment);
     const inputsHash = hashInputs(loaded);
 
+    const draftFields = {
+      status: "draft" as const,
+      seed,
+      slotCount: loaded.slots.length,
+      inputsHash,
+      generatedAt: new Date(),
+      publishedAt: null,
+    };
     await db.transaction(async (tx) => {
       const [tt] = await tx
         .insert(timetable)
-        .values({
-          organizationId,
-          termId: term.id,
-          status: "draft",
-          seed,
-          slotCount: loaded.slots.length,
-          inputsHash,
-          generatedAt: new Date(),
-          publishedAt: null,
-        })
-        .onConflictDoUpdate({
-          target: timetable.termId,
-          set: {
-            status: "draft",
-            seed,
-            slotCount: loaded.slots.length,
-            inputsHash,
-            generatedAt: new Date(),
-            publishedAt: null,
-          },
-        })
+        .values({ organizationId, termId: term.id, ...draftFields })
+        .onConflictDoUpdate({ target: timetable.termId, set: draftFields })
         .returning({ id: timetable.id });
       await tx.delete(placement).where(eq(placement.timetableId, tt.id));
       await tx.insert(placement).values(

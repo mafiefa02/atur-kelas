@@ -13,7 +13,7 @@ import {
   SelectValue,
 } from "#/components/ui/select.tsx";
 import { timetableToCsv } from "#/lib/export.ts";
-import { SCHOOL_DAYS } from "#/lib/schedule.ts";
+import { buildGridFrame, dayLabel } from "#/lib/schedule.ts";
 import {
   generateTimetable,
   getTimetableView,
@@ -27,9 +27,6 @@ export const Route = createFileRoute("/_authed/_app/timetable")({
   loader: () => getTimetableView(),
   component: TimetablePage,
 });
-
-const dayLabel = (n: number) => SCHOOL_DAYS.find((d) => d.n === n)?.label ?? `Day ${n}`;
-const hhmm = (t: string) => t.slice(0, 5);
 
 function TimetablePage() {
   const { termName, readiness, slots, classes, timetable, placements } = Route.useLoaderData();
@@ -128,13 +125,7 @@ function TimetablePage() {
     }
   }
 
-  const dayNums = [...new Set(slots.map((s) => s.dayOfWeek))].sort((a, b) => a - b);
-  const maxSlot = slots.reduce((m, s) => Math.max(m, s.slotIndex + 1), 0);
-  const rowTime = new Map<number, string>();
-  for (const s of slots) {
-    if (!rowTime.has(s.slotIndex)) rowTime.set(s.slotIndex, `${hhmm(s.start)}–${hhmm(s.end)}`);
-  }
-  const hasSlot = new Set(slots.map((s) => `${s.dayOfWeek}:${s.slotIndex}`));
+  const { dayNums, maxSlot, rowTime, hasSlot } = buildGridFrame(slots);
   const cell = new Map<string, (typeof placements)[number]>();
   for (const p of placements) {
     if (p.classGroupId === selectedId) cell.set(`${p.dayOfWeek}:${p.slotIndex}`, p);
