@@ -1,4 +1,4 @@
-import { PushPinIcon } from "@phosphor-icons/react";
+import { CaretDownIcon, DownloadSimpleIcon, PrinterIcon, PushPinIcon } from "@phosphor-icons/react";
 import { Link, createFileRoute, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 
@@ -6,6 +6,7 @@ import { AgendaTimetable } from "#/components/agenda-timetable.tsx";
 import { Badge } from "#/components/ui/badge.tsx";
 import { Button, buttonVariants } from "#/components/ui/button.tsx";
 import { Card, CardContent, CardHeader, CardTitle } from "#/components/ui/card.tsx";
+import { Menu, MenuContent, MenuItem, MenuLinkItem, MenuTrigger } from "#/components/ui/menu.tsx";
 import {
   Select,
   SelectContent,
@@ -136,69 +137,66 @@ function TimetablePage() {
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-6 p-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="font-heading text-xl font-semibold">Timetable</h1>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-2.5">
+            <h1 className="font-heading text-xl font-semibold">Timetable</h1>
+            {timetable ? (
+              <Badge variant={timetable.status === "published" ? "default" : "secondary"}>
+                {timetable.status === "published" ? "Published" : "Draft"}
+              </Badge>
+            ) : null}
+          </div>
           <p className="text-sm text-muted-foreground">
             Generate the weekly schedule for <span className="font-medium">{termName}</span>.
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          {timetable ? (
-            <Badge variant={timetable.status === "published" ? "default" : "secondary"}>
-              {timetable.status === "published" ? "Published" : "Draft"}
-            </Badge>
-          ) : null}
-          {timetable ? (
-            <>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={downloadCsv}
+        {timetable ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <Menu>
+              <MenuTrigger
+                className={cn(buttonVariants({ variant: "outline", size: "sm" }), "gap-1.5")}
               >
-                Download CSV
-              </Button>
-              <Link
-                to="/print"
-                className={buttonVariants({ variant: "outline", size: "sm" })}
-              >
-                Print
-              </Link>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => generate(false)}
-                disabled={busy || !readiness.ok}
-              >
-                Regenerate
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => generate(true)}
-                disabled={busy || !readiness.ok}
-              >
-                Try again
-              </Button>
-              {timetable.status === "draft" ? (
-                <Button
-                  size="sm"
-                  onClick={publish}
-                  disabled={busy || timetable.stale}
-                >
-                  Publish
-                </Button>
-              ) : null}
-            </>
-          ) : (
+                Export
+                <CaretDownIcon className="size-3.5 opacity-60" />
+              </MenuTrigger>
+              <MenuContent align="end">
+                <MenuLinkItem render={<Link to="/print" />}>
+                  <PrinterIcon className="size-4" />
+                  Print
+                </MenuLinkItem>
+                <MenuItem onClick={downloadCsv}>
+                  <DownloadSimpleIcon className="size-4" />
+                  Download CSV
+                </MenuItem>
+              </MenuContent>
+            </Menu>
             <Button
+              variant="outline"
+              size="sm"
               onClick={() => generate(false)}
-              disabled={busy || !readiness.ok || classes.length === 0}
+              disabled={busy || !readiness.ok}
             >
-              {busy ? "Generating…" : "Generate timetable"}
+              Regenerate
             </Button>
-          )}
-        </div>
+            {timetable.status === "draft" ? (
+              <Button
+                size="sm"
+                onClick={publish}
+                disabled={busy || timetable.stale}
+              >
+                Publish
+              </Button>
+            ) : null}
+          </div>
+        ) : (
+          <Button
+            onClick={() => generate(false)}
+            disabled={busy || !readiness.ok || classes.length === 0}
+          >
+            {busy ? "Generating…" : "Generate timetable"}
+          </Button>
+        )}
       </div>
 
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
