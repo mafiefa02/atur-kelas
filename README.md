@@ -38,7 +38,9 @@ empty slot, every subject's weekly hours met — in seconds instead of days.
 
 ## Why this problem, and how I know it's worth solving
 
-Indonesian schools build the jadwal by hand every semester, usually in a spreadsheet. It is a
+Both of my parents has been working as a teacher for over 15 years, I got involved in many of their work activities and I relate to them a lot in being a teacher. By the time I got this email, I immediately had a talk with my father, asked him about what problems can be solved digitally in his school. He brought up this idea of whether we can automate the administrative work that is piling every time a new term begins -- one of them is this schedule building process.
+
+Almost every Indonesian schools build the jadwal by hand every semester, usually in a spreadsheet. It is a
 genuine constraint puzzle: teachers are shared across classes, so a change in one class ripples
 into clashes elsewhere, and mistakes are often found only after the term starts. The work is
 universal (every school does it), recurring (every semester), and painful (days of manual
@@ -51,31 +53,32 @@ configure, and not aware of Kurikulum Merdeka's term/rombel/alokasi-waktu model.
 reality is still a hand-maintained spreadsheet. atur-kelas is web-based and multi-tenant,
 modeled directly on the Indonesian domain, with a one-click generate, a live feasibility check
 before you waste time, and public per-class share links — purpose-fit for this one job rather
-than a general engine you have to bend into shape.
+than a general engine you have to bend into shape. There are also a locally built desktop app for this, but it's not available for the web. This has extra features such as a real-time online view of the published schedule.
 
 ## In scope, out of scope, and why
 
-**In scope:** the intrakurikuler weekly timetable for fixed-rombel **SD / SMP / SMA kelas X**;
-the full flow of setup → feasibility check → generate → edit/pin/swap → publish → share/export.
+**In scope:**
 
-**Out of scope (by decision, see `docs/adr/0001`):** kokurikuler / **P5** and
-**ekstrakurikuler** — these run off the weekly jadwal, not inside it; and **SMA kelas XI–XII
-mata pelajaran pilihan** (moving-class), which breaks the tractable scheduling model. **Known
-limitation:** Pendidikan Agama that splits a class by religion (parallel teachers in one cell)
-can't be represented by the one-subject-per-cell grid.
+1. Weekly timetable for every class group
+2. PDF/Excel export
+3. Initial flow of inputting needed data
 
-The reasoning: ship the one universal, tractable job well rather than a half-working everything.
+**Out of scope (by decision, see `docs/adr/0001`):**
+
+1. **Support for weekly extracuricullar schedule**: I included this out because it's too complex to engineer within ~48 hours of work, and I feel like it does not worth the MVP.
+2. **Per-teacher export**: This'll be an extension of the application where teachers can also manage their classes from within the app. The MVP does not need this feature yet.
+3. **Other export shapes**: From my interview with my dad, the most commonly used export media is a printed time table, and as a CSV file to be submitted to the TU.
+4. **Room/lab constraints**: Sometimes the students will just study in their class, so this is a very low priority feature which can be implemented later on.
+
+Also I'd like to ship a fully working MVP that's doing exceptionally well at its job rather than lots of half-baked features.
 
 ## Where I didn't have answers — what I assumed
 
-- Schools convert Kurikulum Merdeka's **annual** JP into constant **integer weekly** counts
+- Schools convert Kurikulum Merdeka's **annual** jam pelajaran (JP) into constant **integer weekly** counts
   themselves; the app takes those weekly counts as given.
-- Exactly **one active term (semester)** per school at a time.
 - Teacher availability is the full week minus their total load — **no per-teacher
   unavailability windows** are modeled yet.
-- The **bell schedule represents intrakurikuler time only**; a school excludes a fixed P5
-  day/block by leaving it out of the schedule.
-- One teacher per subject-per-class cell (the religion-split case above is not handled).
+- The **bell schedule represents intrakurikuler time only**
 
 ## Three questions I'd ask a real user before building more
 
@@ -88,13 +91,17 @@ The reasoning: ship the one universal, tractable job well rather than a half-wor
 
 ## How I'd know it's working, and what's next
 
-**Working** = a school can set up a term and generate a valid (clash-free, fully-packed) jadwal
-in one sitting, then publish and share it. The signals to watch: time-to-first-valid-timetable
-and zero clashes in the published grid.
+**Working** means a school can set up a term and generate a valid (clash-free, fully-packed) jadwal
+in one sitting, then publish and share it.
 
-**Next:** per-teacher unavailability constraints, room/lab constraints, soft-preference tuning
-(spread heavy subjects, avoid a subject twice in a day), cloning a term into the next semester,
-and importing existing rosters.
+**Next:**
+
+1. per-teacher unavailability constraints
+2. room/lab constraints
+3. soft-preference tuning (spread heavy subjects, avoid a subject twice in a day)
+4. cloning a term into the next semester
+5. importing existing data
+6. per-teacher class management
 
 ---
 
