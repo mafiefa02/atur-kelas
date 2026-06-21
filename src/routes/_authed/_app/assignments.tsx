@@ -21,6 +21,7 @@ import {
   TableRow,
 } from "#/components/ui/table.tsx";
 import { getAssignmentsData, setClassAssignments } from "#/lib/server/assignments.ts";
+import { cn } from "#/lib/utils.ts";
 
 export const Route = createFileRoute("/_authed/_app/assignments")({
   loader: () => getAssignmentsData(),
@@ -83,7 +84,7 @@ function AssignmentsPage() {
   }
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-6 p-6">
+    <div className="mx-auto flex max-w-5xl flex-col gap-6 p-6">
       <div>
         <h1 className="font-heading text-xl font-semibold">Assignments</h1>
         <p className="text-sm text-muted-foreground">
@@ -119,72 +120,100 @@ function AssignmentsPage() {
         </Select>
       </div>
 
-      {gradeCurriculum.length === 0 ? (
-        <Card>
-          <CardContent className="py-6 text-sm text-muted-foreground">
-            {selected.gradeName} has no{" "}
-            <Link
-              to="/curriculum"
-              className="text-primary hover:underline"
-            >
-              curriculum
-            </Link>{" "}
-            yet — set subject weekly counts first.
-          </CardContent>
-        </Card>
-      ) : (
-        <ClassEditor
-          key={selected.id}
-          classId={selected.id}
-          rows={gradeCurriculum}
-          teachers={teachers}
-          existing={existing}
-        />
-      )}
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
+        {gradeCurriculum.length === 0 ? (
+          <Card>
+            <CardContent className="py-6 text-sm text-muted-foreground">
+              {selected.gradeName} has no{" "}
+              <Link
+                to="/curriculum"
+                className="text-primary hover:underline"
+              >
+                curriculum
+              </Link>{" "}
+              yet — set subject weekly counts first.
+            </CardContent>
+          </Card>
+        ) : (
+          <ClassEditor
+            key={selected.id}
+            classId={selected.id}
+            rows={gradeCurriculum}
+            teachers={teachers}
+            existing={existing}
+          />
+        )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Teacher load</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Teacher</TableHead>
-                <TableHead className="text-right">Weekly periods</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {teachers.map((t) => {
-                const load = loadByTeacher.get(t.id) ?? 0;
-                const over = load > weeklyTeachingSlots;
-                return (
-                  <TableRow key={t.id}>
-                    <TableCell className="font-medium">{t.name}</TableCell>
-                    <TableCell className="text-right">
-                      <span className={over ? "font-semibold text-destructive" : ""}>{load}</span>
-                      <span className="text-muted-foreground"> / {weeklyTeachingSlots}</span>
-                      {over ? (
-                        <Badge
-                          variant="destructive"
-                          className="ml-2"
-                        >
-                          Overloaded
-                        </Badge>
-                      ) : null}
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-          <p className="mt-2 text-xs text-muted-foreground">
-            A teacher's weekly periods can't exceed the {weeklyTeachingSlots} weekly slots, or no
-            clash-free timetable exists.
-          </p>
-        </CardContent>
-      </Card>
+        <aside className="lg:sticky lg:top-6">
+          <TeacherLoadCard
+            teachers={teachers}
+            loadByTeacher={loadByTeacher}
+            weeklyTeachingSlots={weeklyTeachingSlots}
+          />
+        </aside>
+      </div>
     </div>
+  );
+}
+
+function TeacherLoadCard({
+  teachers,
+  loadByTeacher,
+  weeklyTeachingSlots,
+}: {
+  teachers: { id: string; name: string }[];
+  loadByTeacher: Map<string, number>;
+  weeklyTeachingSlots: number;
+}) {
+  const overloaded = teachers.filter(
+    (t) => (loadByTeacher.get(t.id) ?? 0) > weeklyTeachingSlots,
+  ).length;
+
+  return (
+    <Card size="sm">
+      <CardHeader>
+        <CardTitle className="flex items-center justify-between text-base">
+          <span>Teacher load</span>
+          {overloaded > 0 ? <Badge variant="destructive">{overloaded} overloaded</Badge> : null}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-3">
+        <ul className="flex flex-col gap-3">
+          {teachers.map((t) => {
+            const load = loadByTeacher.get(t.id) ?? 0;
+            const over = load > weeklyTeachingSlots;
+            const pct =
+              weeklyTeachingSlots > 0 ? Math.min(100, (load / weeklyTeachingSlots) * 100) : 0;
+            return (
+              <li
+                key={t.id}
+                className="flex flex-col gap-1.5"
+              >
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="truncate text-sm font-medium">{t.name}</span>
+                  <span className="shrink-0 text-xs tabular-nums">
+                    <span className={over ? "font-semibold text-destructive" : "text-foreground"}>
+                      {load}
+                    </span>
+                    <span className="text-muted-foreground"> / {weeklyTeachingSlots}</span>
+                  </span>
+                </div>
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                  <div
+                    className={cn("h-full rounded-full", over ? "bg-destructive" : "bg-primary")}
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+        <p className="text-xs text-muted-foreground">
+          A teacher's weekly periods can't exceed the {weeklyTeachingSlots} weekly slots, or no
+          clash-free timetable exists.
+        </p>
+      </CardContent>
+    </Card>
   );
 }
 
