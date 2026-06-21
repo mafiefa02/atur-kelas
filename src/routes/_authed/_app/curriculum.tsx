@@ -6,6 +6,13 @@ import { Button } from "#/components/ui/button.tsx";
 import { Card, CardContent, CardHeader, CardTitle } from "#/components/ui/card.tsx";
 import { Input } from "#/components/ui/input.tsx";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "#/components/ui/select.tsx";
+import {
   Table,
   TableBody,
   TableCell,
@@ -14,6 +21,7 @@ import {
   TableRow,
 } from "#/components/ui/table.tsx";
 import { getCurriculum, setGradeCurriculum } from "#/lib/server/curriculum.ts";
+import { cn } from "#/lib/utils.ts";
 
 export const Route = createFileRoute("/_authed/_app/curriculum")({
   loader: () => getCurriculum(),
@@ -33,6 +41,19 @@ function CurriculumPage() {
     countsByGrade.set(e.gradeLevelId, m);
   }
 
+  const ready = grades.length > 0 && subjects.length > 0;
+
+  const [selectedGradeId, setSelectedGradeId] = useState(() => grades[0]?.id ?? "");
+  // Keep the selection valid if the active grade goes away (e.g. it was deleted).
+  const activeGradeId = grades.some((g) => g.id === selectedGradeId)
+    ? selectedGradeId
+    : (grades[0]?.id ?? "");
+
+  const gradeItems = Object.fromEntries(grades.map((g) => [g.id, g.name]));
+  // Saved (persisted) total per grade — drives the at-a-glance dot in the picker.
+  const savedSum = (gradeId: string) =>
+    subjects.reduce((acc, s) => acc + (countsByGrade.get(gradeId)?.[s.id] ?? 0), 0);
+
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-6 p-6">
       <div>
@@ -44,7 +65,7 @@ function CurriculumPage() {
         </p>
       </div>
 
-      {grades.length === 0 || subjects.length === 0 ? (
+      {!ready ? (
         <Card>
           <CardContent className="py-6 text-sm text-muted-foreground">
             Add{" "}
@@ -65,15 +86,49 @@ function CurriculumPage() {
           </CardContent>
         </Card>
       ) : (
-        grades.map((grade) => (
-          <GradeCurriculum
-            key={grade.id}
-            grade={grade}
-            subjects={subjects}
-            initial={countsByGrade.get(grade.id) ?? {}}
-            target={weeklyTeachingSlots}
-          />
-        ))
+        <>
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-medium">Grade</span>
+            <Select
+              items={gradeItems}
+              value={activeGradeId}
+              onValueChange={(value) => setSelectedGradeId(value as string)}
+            >
+              <SelectTrigger className="min-w-48">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {grades.map((g) => (
+                  <SelectItem
+                    key={g.id}
+                    value={g.id}
+                  >
+                    <span className="flex-1">{g.name}</span>
+                    <GradeStatusDot
+                      sum={savedSum(g.id)}
+                      target={weeklyTeachingSlots}
+                    />
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* All grades stay mounted so unsaved edits survive switching; only the active one shows. */}
+          {grades.map((grade) => (
+            <div
+              key={grade.id}
+              className={grade.id === activeGradeId ? undefined : "hidden"}
+            >
+              <GradeCurriculum
+                grade={grade}
+                subjects={subjects}
+                initial={countsByGrade.get(grade.id) ?? {}}
+                target={weeklyTeachingSlots}
+              />
+            </div>
+          ))}
+        </>
       )}
     </div>
   );
@@ -183,6 +238,24 @@ function GradeCurriculum({
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
       </CardContent>
     </Card>
+  );
+}
+
+function GradeStatusDot({ sum, target }: { sum: number; target: number }) {
+  const { color, label } =
+    target === 0
+      ? { color: "bg-muted-foreground/40", label: "Set the bell schedule first" }
+      : sum === target
+        ? { color: "bg-primary", label: "Balanced" }
+        : sum < target
+          ? { color: "bg-amber-500", label: `${target - sum} short` }
+          : { color: "bg-destructive", label: `${sum - target} over` };
+  return (
+    <span
+      className={cn("size-2 shrink-0 rounded-full", color)}
+      title={label}
+      aria-label={label}
+    />
   );
 }
 
