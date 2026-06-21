@@ -1,96 +1,110 @@
 # atur-kelas
 
-Automatic weekly timetable generator for schools. Set up your terms, subjects,
-teachers, classes, and bell schedule, then generate a clash-free _jadwal pelajaran_
-in milliseconds — tweak it, publish it, and share read-only links with students and
-parents.
+Auto-generates the weekly **intrakurikuler** timetable (_jadwal pelajaran_) for Indonesian
+schools under **Kurikulum Merdeka**. Set up a term, subjects, teachers, classes, and a bell
+schedule, then generate a clash-free, fully-packed timetable in milliseconds — edit it,
+publish it, and share read-only links with students and parents.
 
-Built for the K-12 model (Indonesian SMP/SMA): students stay in a class, teachers
-rotate between them, and teachers are shared across classes — which makes scheduling a
-genuine constraint-satisfaction problem, not a simple grid fill.
+- **Live:** https://aturkelas.afiefabd.com — sign up to create your own school. (No demo account on production; to try the seeded demo school, run it locally — see below.)
+- **Repo:** https://github.com/mafiefa02/atur-kelas
 
-## Features
+---
 
-- **Multi-tenant** — each school is its own organization (email/password auth).
-- **Setup** — terms, grade levels, subjects, teachers, a per-term bell schedule
-  (daily hours + breaks → auto-derived periods), classes, per-grade curriculum with a
-  **live feasibility check**, and per-class teacher assignments.
-- **Generator** — a matching-based solver produces a clash-free, fully-packed
-  timetable; regenerate / try-again for a different layout, click-to-swap editing,
-  pin lessons, then publish.
-- **Public share links** — a read-only per-class timetable at `/p/<token>` (no login),
-  e.g. to drop in a class WhatsApp group.
-- **Export** — print / save-as-PDF, and CSV download.
+## What it is, and how to run it
 
-Full design notes and decisions: [`docs/timetabling-design.md`](docs/timetabling-design.md).
-
-## Tech stack
-
-TanStack Start (React 19) · Postgres + Drizzle ORM · Better Auth (organization plugin)
-· Tailwind v4 with shadcn (Base UI) · Vitest · oxlint + oxfmt.
-
-## Quick start
+A multi-tenant web app: one school is one account (organization). Inside its active term you
+configure the inputs, the solver builds a valid weekly grid, and you publish a per-class
+timetable behind a shareable link.
 
 Prerequisites: **Node 20+**, **pnpm**, and **Docker** (for local Postgres).
 
 ```bash
 make setup     # create .env.local, install deps, start Postgres, run migrations
-make fresh     # (optional) reset the DB and seed a ready-to-use demo school
+make fresh     # reset the DB and seed a ready-to-use demo school
 make dev       # start the app at http://localhost:3000
 ```
 
-Demo login (after `make fresh` or `make seed`):
+Demo login (local only, after `make fresh`): `admin@sekolah.test` / `password123`. The seeded
+demo school is fully configured, so go straight to **Timetable → Generate** to try editing,
+publishing, and share links. Production has no demo account — sign up to create your own school.
+Run `make help` for every command.
 
-- **Email:** `admin@sekolah.test`
-- **Password:** `password123`
+## Who it's for, and the one job
 
-The demo school comes fully configured, so you can go straight to **Timetable →
-Generate** and explore editing, publishing, and share links.
+For the person who builds the school timetable each semester — the _wakil kurikulum_ /
+admin / TU staff. The one job it has to do well: turn a school's teachers, subjects, classes,
+and hours into a **clash-free, fully-packed weekly jadwal** — no teacher double-booked, no
+empty slot, every subject's weekly hours met — in seconds instead of days.
 
-## Common commands
+## Why this problem, and how I know it's worth solving
 
-| Command                  | Description                                      |
-| ------------------------ | ------------------------------------------------ |
-| `make dev`               | Start the dev server                             |
-| `make stop`              | Stop the running dev server (frees port 3000)    |
-| `make restart`           | Stop the dev server, reset the DB, then start it |
-| `make restart-seed`      | Like `make restart`, but also seed demo data     |
-| `make fresh`             | Reset the database and seed demo data            |
-| `make seed`              | Seed the demo school                             |
-| `make reset`             | Wipe the database volume and re-apply migrations |
-| `make db-up` / `db-down` | Start / stop the Postgres container              |
-| `make studio`            | Open Drizzle Studio                              |
-| `pnpm test`              | Run tests (Vitest)                               |
-| `pnpm lint`              | Lint (oxlint)                                    |
-| `pnpm generate-routes`   | Regenerate the route tree after adding routes    |
+Indonesian schools build the jadwal by hand every semester, usually in a spreadsheet. It is a
+genuine constraint puzzle: teachers are shared across classes, so a change in one class ripples
+into clashes elsewhere, and mistakes are often found only after the term starts. The work is
+universal (every school does it), recurring (every semester), and painful (days of manual
+juggling) — that combination is what makes it worth automating.
 
-Run `make` (or `make help`) to see everything.
+## What's already out there, and why I built this anyway
 
-## Project layout
+Generic timetabling tools exist (aSc TimeTables, FET) but they are desktop-bound, complex to
+configure, and not aware of Kurikulum Merdeka's term/rombel/alokasi-waktu model. The common
+reality is still a hand-maintained spreadsheet. atur-kelas is web-based and multi-tenant,
+modeled directly on the Indonesian domain, with a one-click generate, a live feasibility check
+before you waste time, and public per-class share links — purpose-fit for this one job rather
+than a general engine you have to bend into shape.
 
-```
-src/
-  routes/              TanStack file-based routes
-    _authed/_app/      authenticated app (sidebar shell): setup + timetable + share
-    p/$token.tsx       public per-class timetable (no auth)
-  lib/
-    server/            server functions — all DB access lives here
-    solver.ts          the timetable solver (pure, matching-based edge-coloring)
-    schedule.ts        bell-schedule config + slot derivation
-    db/                Drizzle client + schema (auth.ts generated, app.ts domain)
-  scripts/seed.ts      dev seed
-scripts/               dev-env shell helpers (stop / restart the local stack)
-drizzle/               SQL migrations (committed)
-docs/                  design notes
-```
+## In scope, out of scope, and why
 
-## Development notes
+**In scope:** the intrakurikuler weekly timetable for fixed-rombel **SD / SMP / SMA kelas X**;
+the full flow of setup → feasibility check → generate → edit/pin/swap → publish → share/export.
 
-- **Schema changes:** edit `src/lib/db/schema/`, then `pnpm db:generate` and
-  `pnpm db:migrate`. Never edit the database by hand.
-- **Environment:** `DATABASE_URL` and `BETTER_AUTH_SECRET` live in `.env.local`
-  (see `.env.example`). `make env` generates a secret for you.
-- Commits use [Conventional Commits](https://www.conventionalcommits.org/); the
-  pre-commit hook formats, lints, and runs a production build.
+**Out of scope (by decision, see `docs/adr/0001`):** kokurikuler / **P5** and
+**ekstrakurikuler** — these run off the weekly jadwal, not inside it; and **SMA kelas XI–XII
+mata pelajaran pilihan** (moving-class), which breaks the tractable scheduling model. **Known
+limitation:** Pendidikan Agama that splits a class by religion (parallel teachers in one cell)
+can't be represented by the one-subject-per-cell grid.
 
-See [`CLAUDE.md`](CLAUDE.md) for architecture conventions and gotchas.
+The reasoning: ship the one universal, tractable job well rather than a half-working everything.
+
+## Where I didn't have answers — what I assumed
+
+- Schools convert Kurikulum Merdeka's **annual** JP into constant **integer weekly** counts
+  themselves; the app takes those weekly counts as given.
+- Exactly **one active term (semester)** per school at a time.
+- Teacher availability is the full week minus their total load — **no per-teacher
+  unavailability windows** are modeled yet.
+- The **bell schedule represents intrakurikuler time only**; a school excludes a fixed P5
+  day/block by leaving it out of the schedule.
+- One teacher per subject-per-class cell (the religion-split case above is not handled).
+
+## Three questions I'd ask a real user before building more
+
+1. When you build the jadwal today, what actually blocks you most — teacher availability
+   windows, room/lab sharing, or fairness of the spread? (Decides what constraint to add next.)
+2. How do you handle subjects that split a class into parallel groups, like Pendidikan Agama by
+   religion?
+3. Once it's generated, who has to see or approve it, and in what form — print, PDF, a share
+   link, or an export into an existing system (Dapodik / school SIM)?
+
+## How I'd know it's working, and what's next
+
+**Working** = a school can set up a term and generate a valid (clash-free, fully-packed) jadwal
+in one sitting, then publish and share it. The signals to watch: time-to-first-valid-timetable
+and zero clashes in the published grid.
+
+**Next:** per-teacher unavailability constraints, room/lab constraints, soft-preference tuning
+(spread heavy subjects, avoid a subject twice in a day), cloning a term into the next semester,
+and importing existing rosters.
+
+---
+
+## Tech stack
+
+TanStack Start (React 19) · Postgres + Drizzle ORM · Better Auth (organization plugin) ·
+Tailwind v4 with shadcn (Base UI) · Vitest · oxlint + oxfmt. The solver
+(`src/lib/solver.ts`) is a pure, matching-based bipartite edge-coloring — fast and guaranteed
+to produce a clash-free grid when the inputs are feasible.
+
+See [`docs/timetabling-design.md`](docs/timetabling-design.md) for the full design,
+[`CONTEXT.md`](CONTEXT.md) for the domain glossary, and [`CLAUDE.md`](CLAUDE.md) for
+architecture conventions.
