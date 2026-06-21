@@ -52,6 +52,9 @@ Generate** and explore editing, publishing, and share links.
 | Command                  | Description                                      |
 | ------------------------ | ------------------------------------------------ |
 | `make dev`               | Start the dev server                             |
+| `make stop`              | Stop the running dev server (frees port 3000)    |
+| `make restart`           | Stop the dev server, reset the DB, then start it |
+| `make restart-seed`      | Like `make restart`, but also seed demo data     |
 | `make fresh`             | Reset the database and seed demo data            |
 | `make seed`              | Seed the demo school                             |
 | `make reset`             | Wipe the database volume and re-apply migrations |
@@ -76,6 +79,7 @@ src/
     schedule.ts        bell-schedule config + slot derivation
     db/                Drizzle client + schema (auth.ts generated, app.ts domain)
   scripts/seed.ts      dev seed
+scripts/               dev-env shell helpers (stop / restart the local stack)
 drizzle/               SQL migrations (committed)
 docs/                  design notes
 ```

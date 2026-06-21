@@ -18,6 +18,9 @@ Phosphor icons · Vitest · oxlint + oxfmt · React Compiler (babel plugin).
 ## Commands
 
 - `make dev` — dev server at http://localhost:3000
+- `make stop` — stop the running dev server (frees port 3000)
+- `make restart` — stop the dev server, reset the DB from scratch, then start dev
+  (`make restart-seed` also seeds the demo school)
 - `make fresh` — reset DB + seed demo school (`admin@sekolah.test` / `password123`)
 - `make seed` / `make reset` / `make db-up` / `make studio`
 - `pnpm db:generate` then `pnpm db:migrate` — after schema changes
