@@ -1,6 +1,7 @@
+import { PrinterIcon } from "@phosphor-icons/react";
 import { createFileRoute } from "@tanstack/react-router";
 
-import { buildGridFrame, dayLabel } from "#/lib/schedule.ts";
+import { AgendaTimetable } from "#/components/agenda-timetable.tsx";
 import { getPublicClassTimetable } from "#/lib/server/public.ts";
 
 export const Route = createFileRoute("/p/$token")({
@@ -8,15 +9,16 @@ export const Route = createFileRoute("/p/$token")({
   component: PublicTimetable,
 });
 
+// "2026-06-21T..." -> "21/06/2026"
+function fmtDate(iso: string) {
+  const d = new Date(iso);
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  return `${dd}/${mm}/${d.getFullYear()}`;
+}
+
 function Shell({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="mx-auto flex min-h-svh max-w-4xl flex-col gap-6 p-6">
-      <div className="font-heading text-sm font-semibold text-muted-foreground print:hidden">
-        atur-kelas
-      </div>
-      {children}
-    </div>
-  );
+  return <div className="mx-auto flex min-h-svh max-w-md flex-col gap-6 p-6">{children}</div>;
 }
 
 function PublicTimetable() {
@@ -40,80 +42,38 @@ function PublicTimetable() {
   }
 
   const { schoolName, className, gradeName, publishedAt, slots, cells } = data;
-  const { dayNums, maxSlot, rowTime, hasSlot } = buildGridFrame(slots);
-  const byCell = new Map(cells.map((c) => [`${c.dayOfWeek}:${c.slotIndex}`, c]));
 
   return (
     <Shell>
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="font-heading text-xl font-semibold">
-            {gradeName} {className}
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            {schoolName} · Jadwal pelajaran
-            {publishedAt ? ` · diperbarui ${new Date(publishedAt).toLocaleDateString()}` : ""}
-          </p>
-        </div>
+      <div className="flex justify-end print:hidden">
         <button
           type="button"
           onClick={() => window.print()}
-          className="rounded-lg border border-border px-3 py-1.5 text-sm hover:bg-muted print:hidden"
+          aria-label="Print"
+          className="rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground"
         >
-          Print
+          <PrinterIcon className="size-5" />
         </button>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full border-separate border-spacing-1 text-sm">
-          <thead>
-            <tr>
-              <th className="w-24" />
-              {dayNums.map((d) => (
-                <th
-                  key={d}
-                  className="px-2 py-1 text-left font-medium"
-                >
-                  {dayLabel(d)}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {Array.from({ length: maxSlot }, (_, r) => (
-              <tr key={r}>
-                <td className="pr-2 align-top font-mono text-xs text-muted-foreground">
-                  {rowTime.get(r) ?? `Jam ${r + 1}`}
-                </td>
-                {dayNums.map((d) => {
-                  const c = byCell.get(`${d}:${r}`);
-                  const exists = hasSlot.has(`${d}:${r}`);
-                  return (
-                    <td
-                      key={d}
-                      className="align-top"
-                    >
-                      {c ? (
-                        <div
-                          className="rounded-lg px-2 py-1.5"
-                          style={{ backgroundColor: `${c.subjectColor ?? "#64748b"}22` }}
-                        >
-                          <div className="font-medium">{c.subjectName}</div>
-                          <div className="text-xs text-muted-foreground">{c.teacherName}</div>
-                        </div>
-                      ) : exists ? (
-                        <div className="rounded-lg bg-muted/30 px-2 py-1.5 text-xs text-muted-foreground">
-                          —
-                        </div>
-                      ) : null}
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <AgendaTimetable
+        className="flex-1"
+        slots={slots}
+        cells={cells}
+        eyebrow="Jadwal Pelajaran"
+        title={`${gradeName} · ${className}`}
+        subtitle={
+          <>
+            {schoolName}
+            {publishedAt ? ` · diperbarui ${fmtDate(publishedAt)}` : ""}
+          </>
+        }
+        footer={
+          <p className="border-t border-border pt-4 text-center text-sm text-muted-foreground">
+            Dibuat dengan <span className="font-semibold text-foreground">atur-kelas</span>
+          </p>
+        }
+      />
     </Shell>
   );
 }
