@@ -356,13 +356,13 @@ function TimetablePage() {
                           return (
                             <td
                               key={d}
-                              className="align-top"
+                              className="h-px align-top"
                             >
                               {p ? (
                                 <div
                                   onClick={() => onCellClick(d, r, p.isPinned)}
                                   className={cn(
-                                    "group relative cursor-pointer rounded-lg px-2 py-1.5 ring-1 ring-transparent transition-shadow",
+                                    "group relative flex h-full cursor-pointer flex-col rounded-lg px-2 py-1.5 ring-1 ring-transparent transition-shadow",
                                     isSel && "ring-2 ring-ring",
                                     busy && "pointer-events-none opacity-70",
                                   )}
@@ -395,7 +395,7 @@ function TimetablePage() {
                                   </div>
                                 </div>
                               ) : exists ? (
-                                <div className="rounded-lg bg-muted/30 px-2 py-1.5 text-xs text-muted-foreground">
+                                <div className="flex h-full items-center rounded-lg bg-muted/30 px-2 py-1.5 text-xs text-muted-foreground">
                                   —
                                 </div>
                               ) : null}
