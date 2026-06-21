@@ -142,9 +142,10 @@ export const bellSchedule = pgTable(
   (t) => [uniqueIndex("bell_schedule_term_uidx").on(t.termId)],
 );
 
-// === Curriculum entry — per grade: a subject's weekly occurrence count ===
-export const curriculumEntry = pgTable(
-  "curriculum_entry",
+// === Subject hours — per grade: a subject's weekly JP allocation (intrakurikuler
+// alokasi waktu). The user-facing feature stays labelled "Curriculum". ===
+export const subjectHours = pgTable(
+  "subject_hours",
   {
     id: pk(),
     organizationId: orgRef(),
@@ -159,8 +160,8 @@ export const curriculumEntry = pgTable(
     ...timestamps(),
   },
   (t) => [
-    uniqueIndex("curriculum_grade_subject_uidx").on(t.termId, t.gradeLevelId, t.subjectId),
-    index("curriculum_term_idx").on(t.termId),
+    uniqueIndex("subject_hours_grade_subject_uidx").on(t.termId, t.gradeLevelId, t.subjectId),
+    index("subject_hours_term_idx").on(t.termId),
   ],
 );
 
@@ -243,18 +244,18 @@ export const termRelations = relations(term, ({ many, one }) => ({
     references: [organization.id],
   }),
   classGroups: many(classGroup),
-  curriculumEntries: many(curriculumEntry),
+  subjectHours: many(subjectHours),
   assignments: many(assignment),
   bellSchedule: one(bellSchedule),
 }));
 
 export const gradeLevelRelations = relations(gradeLevel, ({ many }) => ({
   classGroups: many(classGroup),
-  curriculumEntries: many(curriculumEntry),
+  subjectHours: many(subjectHours),
 }));
 
 export const subjectRelations = relations(subject, ({ many }) => ({
-  curriculumEntries: many(curriculumEntry),
+  subjectHours: many(subjectHours),
   assignments: many(assignment),
 }));
 
@@ -276,14 +277,14 @@ export const bellScheduleRelations = relations(bellSchedule, ({ one }) => ({
   term: one(term, { fields: [bellSchedule.termId], references: [term.id] }),
 }));
 
-export const curriculumEntryRelations = relations(curriculumEntry, ({ one }) => ({
-  term: one(term, { fields: [curriculumEntry.termId], references: [term.id] }),
+export const subjectHoursRelations = relations(subjectHours, ({ one }) => ({
+  term: one(term, { fields: [subjectHours.termId], references: [term.id] }),
   gradeLevel: one(gradeLevel, {
-    fields: [curriculumEntry.gradeLevelId],
+    fields: [subjectHours.gradeLevelId],
     references: [gradeLevel.id],
   }),
   subject: one(subject, {
-    fields: [curriculumEntry.subjectId],
+    fields: [subjectHours.subjectId],
     references: [subject.id],
   }),
 }));

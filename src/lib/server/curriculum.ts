@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { and, asc, eq, inArray } from "drizzle-orm";
 
 import { db } from "#/lib/db";
-import { curriculumEntry, gradeLevel, subject } from "#/lib/db/schema";
+import { subjectHours, gradeLevel, subject } from "#/lib/db/schema";
 
 import { loadWeeklyTeachingSlots } from "./bell-schedule-data.ts";
 import { requireActiveTerm } from "./context.ts";
@@ -22,16 +22,13 @@ export const getCurriculum = createServerFn({ method: "GET" }).handler(async () 
       .orderBy(asc(subject.name)),
     db
       .select({
-        gradeLevelId: curriculumEntry.gradeLevelId,
-        subjectId: curriculumEntry.subjectId,
-        weeklyCount: curriculumEntry.weeklyCount,
+        gradeLevelId: subjectHours.gradeLevelId,
+        subjectId: subjectHours.subjectId,
+        weeklyCount: subjectHours.weeklyCount,
       })
-      .from(curriculumEntry)
+      .from(subjectHours)
       .where(
-        and(
-          eq(curriculumEntry.organizationId, organizationId),
-          eq(curriculumEntry.termId, term.id),
-        ),
+        and(eq(subjectHours.organizationId, organizationId), eq(subjectHours.termId, term.id)),
       ),
     loadWeeklyTeachingSlots(term.id),
   ]);
@@ -73,12 +70,12 @@ export const setGradeCurriculum = createServerFn({ method: "POST" })
         const count = Math.round(Number(raw));
         if (!Number.isFinite(count) || count <= 0) {
           await tx
-            .delete(curriculumEntry)
+            .delete(subjectHours)
             .where(
               and(
-                eq(curriculumEntry.termId, term.id),
-                eq(curriculumEntry.gradeLevelId, data.gradeLevelId),
-                eq(curriculumEntry.subjectId, subjectId),
+                eq(subjectHours.termId, term.id),
+                eq(subjectHours.gradeLevelId, data.gradeLevelId),
+                eq(subjectHours.subjectId, subjectId),
               ),
             );
           continue;
@@ -87,7 +84,7 @@ export const setGradeCurriculum = createServerFn({ method: "POST" })
           throw new Error("Weekly count is too large.");
         }
         await tx
-          .insert(curriculumEntry)
+          .insert(subjectHours)
           .values({
             organizationId,
             termId: term.id,
@@ -96,11 +93,7 @@ export const setGradeCurriculum = createServerFn({ method: "POST" })
             weeklyCount: count,
           })
           .onConflictDoUpdate({
-            target: [
-              curriculumEntry.termId,
-              curriculumEntry.gradeLevelId,
-              curriculumEntry.subjectId,
-            ],
+            target: [subjectHours.termId, subjectHours.gradeLevelId, subjectHours.subjectId],
             set: { weeklyCount: count },
           });
       }
