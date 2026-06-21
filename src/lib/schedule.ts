@@ -136,3 +136,80 @@ export function buildGridFrame(slots: readonly SnapshotSlot[]) {
   const hasSlot = new Set(slots.map((s) => `${s.dayOfWeek}:${s.slotIndex}`));
   return { dayNums, maxSlot, rowTime, hasSlot };
 }
+
+// What a single day holds in one time-band row: a teaching slot (carrying the slotIndex
+// the placement/pin/swap handlers key off), or a break. A day with no interval covering
+// the row is simply absent from the row's `cells` map (renders empty).
+export type GridDayCell = { kind: "lesson"; slotIndex: number } | { kind: "break" };
+export type GridRow = {
+  start: string;
+  end: string;
+  label: string; // "07:00–07:45"
+  kind: "lesson" | "break";
+  cells: Map<number, GridDayCell>; // dayOfWeek -> what that day has in this band
+};
+
+// Time-accurate grid: rows are real (start,end) bands, not slot indices. Unlike
+// buildGridFrame, this never assumes slotIndex N lands at the same time across days —
+// each day's slots/breaks are placed by their own clock times. Breaks (the gaps between
+// consecutive teaching slots) get their own rows, and a day that ends early simply has
+// no cell in the later rows (so it renders empty rather than borrowing another day's time).
+export function buildTimeGrid(slots: readonly SnapshotSlot[]): {
+  dayNums: number[];
+  rows: GridRow[];
+} {
+  const dayNums = [...new Set(slots.map((s) => s.dayOfWeek))].sort((a, b) => a - b);
+
+  // Per-day, chronological intervals: each teaching slot, plus a break for every gap
+  // between one slot's end and the next slot's start.
+  type Interval = { start: string; end: string; cell: GridDayCell };
+  const perDay = new Map<number, Interval[]>();
+  for (const d of dayNums) {
+    const daySlots = slots
+      .filter((s) => s.dayOfWeek === d)
+      .sort((a, b) => toMinutes(a.start) - toMinutes(b.start));
+    const intervals: Interval[] = [];
+    for (let i = 0; i < daySlots.length; i++) {
+      const s = daySlots[i];
+      const prev = daySlots[i - 1];
+      if (prev && toMinutes(prev.end) < toMinutes(s.start)) {
+        intervals.push({ start: prev.end, end: s.start, cell: { kind: "break" } });
+      }
+      intervals.push({
+        start: s.start,
+        end: s.end,
+        cell: { kind: "lesson", slotIndex: s.slotIndex },
+      });
+    }
+    perDay.set(d, intervals);
+  }
+
+  // Merge every day's intervals into rows keyed by exact (start,end). Days that share a
+  // band collapse onto one row; misaligned bands become their own rows (an honest
+  // staircase rather than a fudged alignment).
+  const rowMap = new Map<string, GridRow>();
+  for (const [d, intervals] of perDay) {
+    for (const iv of intervals) {
+      const key = `${hhmm(iv.start)}-${hhmm(iv.end)}`;
+      let row = rowMap.get(key);
+      if (!row) {
+        row = {
+          start: iv.start,
+          end: iv.end,
+          label: `${hhmm(iv.start)}–${hhmm(iv.end)}`,
+          kind: iv.cell.kind,
+          cells: new Map(),
+        };
+        rowMap.set(key, row);
+      }
+      // If any day teaches in this band, the row reads as a lesson row.
+      if (iv.cell.kind === "lesson") row.kind = "lesson";
+      row.cells.set(d, iv.cell);
+    }
+  }
+
+  const rows = [...rowMap.values()].sort(
+    (a, b) => toMinutes(a.start) - toMinutes(b.start) || toMinutes(a.end) - toMinutes(b.end),
+  );
+  return { dayNums, rows };
+}

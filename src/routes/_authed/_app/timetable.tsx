@@ -15,7 +15,7 @@ import {
   SelectValue,
 } from "#/components/ui/select.tsx";
 import { timetableToCsv } from "#/lib/export.ts";
-import { buildGridFrame, dayLabel } from "#/lib/schedule.ts";
+import { buildTimeGrid, dayLabel, hhmm } from "#/lib/schedule.ts";
 import {
   generateTimetable,
   getTimetableView,
@@ -135,7 +135,7 @@ function TimetablePage() {
     }
   }
 
-  const { dayNums, maxSlot, rowTime, hasSlot } = buildGridFrame(slots);
+  const { dayNums, rows } = buildTimeGrid(slots);
   const cell = new Map<string, (typeof placements)[number]>();
   for (const p of placements) {
     if (p.classGroupId === selectedId) cell.set(`${p.dayOfWeek}:${p.slotIndex}`, p);
@@ -349,15 +349,43 @@ function TimetablePage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {Array.from({ length: maxSlot }, (_, r) => (
-                      <tr key={r}>
-                        <td className="pr-2 align-top font-mono text-xs text-muted-foreground">
-                          {rowTime.get(r) ?? `Jam ${r + 1}`}
+                    {rows.map((row) => (
+                      <tr key={`${row.start}-${row.end}`}>
+                        <td className="pr-2 align-top font-mono text-xs leading-tight text-muted-foreground">
+                          <span className="block">{hhmm(row.start)}</span>
+                          <span className="block opacity-70">{hhmm(row.end)}</span>
+                          {row.kind === "break" ? (
+                            <span className="mt-0.5 block font-sans text-[0.65rem] tracking-wide uppercase opacity-70">
+                              Istirahat
+                            </span>
+                          ) : null}
                         </td>
                         {dayNums.map((d) => {
-                          const p = cell.get(`${d}:${r}`);
-                          const exists = hasSlot.has(`${d}:${r}`);
-                          const isSel = selectedCell?.day === d && selectedCell?.slot === r;
+                          const dc = row.cells.get(d);
+                          if (!dc) {
+                            // This day has no slot or break in this time band — leave it blank.
+                            return (
+                              <td
+                                key={d}
+                                className="align-top"
+                              />
+                            );
+                          }
+                          if (dc.kind === "break") {
+                            return (
+                              <td
+                                key={d}
+                                className="align-top"
+                              >
+                                <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-border/60 bg-muted/20 px-2 py-1 text-[0.7rem] text-muted-foreground">
+                                  Istirahat
+                                </div>
+                              </td>
+                            );
+                          }
+                          const slotIndex = dc.slotIndex;
+                          const p = cell.get(`${d}:${slotIndex}`);
+                          const isSel = selectedCell?.day === d && selectedCell?.slot === slotIndex;
                           return (
                             <td
                               key={d}
@@ -365,7 +393,7 @@ function TimetablePage() {
                             >
                               {p ? (
                                 <div
-                                  onClick={() => onCellClick(d, r, p.isPinned)}
+                                  onClick={() => onCellClick(d, slotIndex, p.isPinned)}
                                   className={cn(
                                     "group relative flex h-full cursor-pointer flex-col rounded-lg px-2 py-1.5 ring-1 ring-transparent transition-shadow",
                                     isSel && "ring-2 ring-ring",
@@ -379,7 +407,7 @@ function TimetablePage() {
                                       type="button"
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        onTogglePin(d, r);
+                                        onTogglePin(d, slotIndex);
                                       }}
                                       className={cn(
                                         "shrink-0 rounded p-0.5 transition-opacity",
@@ -399,11 +427,11 @@ function TimetablePage() {
                                     {p.teacherName}
                                   </div>
                                 </div>
-                              ) : exists ? (
+                              ) : (
                                 <div className="flex h-full items-center rounded-lg bg-muted/30 px-2 py-1.5 text-xs text-muted-foreground">
                                   —
                                 </div>
-                              ) : null}
+                              )}
                             </td>
                           );
                         })}
