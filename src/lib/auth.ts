@@ -8,9 +8,18 @@ import { db } from "./db";
 import { member } from "./db/schema/auth.ts";
 import { env } from "./env";
 
+// Better Auth trusts the baseURL origin automatically, but Vercel serves preview (and
+// production) deployments from rotating *.vercel.app URLs that won't match BETTER_AUTH_URL,
+// which would fail the CSRF origin check and break sign-in there. Trust each deployment's
+// own origin via Vercel's injected env vars (absent locally, so this is empty in dev).
+const vercelOrigins = [process.env.VERCEL_URL, process.env.VERCEL_BRANCH_URL]
+  .filter((host): host is string => Boolean(host))
+  .map((host) => `https://${host}`);
+
 export const auth = betterAuth({
   baseURL: env.BETTER_AUTH_URL,
   secret: env.BETTER_AUTH_SECRET,
+  trustedOrigins: vercelOrigins,
   database: drizzleAdapter(db, { provider: "pg" }),
   emailAndPassword: {
     enabled: true,

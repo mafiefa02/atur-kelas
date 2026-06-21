@@ -12,7 +12,12 @@ const globalForDb = globalThis as unknown as {
   _pgClient?: ReturnType<typeof postgres>;
 };
 
-const client = globalForDb._pgClient ?? postgres(env.DATABASE_URL, { max: 10 });
+// Serverless-safe pooling: each function instance holds at most one connection, and
+// `prepare: false` is required behind a transaction-mode pooler (Supabase :6543, Neon
+// pooler) which cannot keep prepared statements across multiplexed connections. Safe for
+// local dev too. Point DATABASE_URL at the *pooled* endpoint in production; run drizzle
+// migrations against the direct connection instead.
+const client = globalForDb._pgClient ?? postgres(env.DATABASE_URL, { max: 1, prepare: false });
 if (!globalForDb._pgClient) {
   globalForDb._pgClient = client;
 }
