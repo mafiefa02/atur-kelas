@@ -5,7 +5,7 @@ import { db } from "#/lib/db";
 import {
   assignment,
   classGroup,
-  curriculumEntry,
+  subjectHours,
   gradeLevel,
   subject,
   teacher,
@@ -36,19 +36,14 @@ export const getAssignmentsData = createServerFn({ method: "GET" }).handler(asyn
       .orderBy(asc(teacher.name)),
     db
       .select({
-        gradeLevelId: curriculumEntry.gradeLevelId,
-        subjectId: curriculumEntry.subjectId,
+        gradeLevelId: subjectHours.gradeLevelId,
+        subjectId: subjectHours.subjectId,
         subjectName: subject.name,
-        weeklyCount: curriculumEntry.weeklyCount,
+        weeklyCount: subjectHours.weeklyCount,
       })
-      .from(curriculumEntry)
-      .innerJoin(subject, eq(subject.id, curriculumEntry.subjectId))
-      .where(
-        and(
-          eq(curriculumEntry.organizationId, organizationId),
-          eq(curriculumEntry.termId, term.id),
-        ),
-      )
+      .from(subjectHours)
+      .innerJoin(subject, eq(subject.id, subjectHours.subjectId))
+      .where(and(eq(subjectHours.organizationId, organizationId), eq(subjectHours.termId, term.id)))
       .orderBy(asc(subject.name)),
     db
       .select({
@@ -88,13 +83,10 @@ export const setClassAssignments = createServerFn({ method: "POST" })
     }
 
     const curr = await db
-      .select({ subjectId: curriculumEntry.subjectId, weeklyCount: curriculumEntry.weeklyCount })
-      .from(curriculumEntry)
+      .select({ subjectId: subjectHours.subjectId, weeklyCount: subjectHours.weeklyCount })
+      .from(subjectHours)
       .where(
-        and(
-          eq(curriculumEntry.termId, term.id),
-          eq(curriculumEntry.gradeLevelId, cls.gradeLevelId),
-        ),
+        and(eq(subjectHours.termId, term.id), eq(subjectHours.gradeLevelId, cls.gradeLevelId)),
       );
     const weeklyBySubject = new Map(curr.map((c) => [c.subjectId, c.weeklyCount]));
 

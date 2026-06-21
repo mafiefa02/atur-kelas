@@ -43,6 +43,13 @@
       "when": 1781975450514,
       "tag": "0005_public_share",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1782015432809,
+      "tag": "0006_rename_curriculum_to_subject_hours",
+      "breakpoints": true
     }
   ]
 }

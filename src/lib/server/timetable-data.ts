@@ -9,7 +9,7 @@ import { db } from "#/lib/db";
 import {
   assignment,
   classGroup,
-  curriculumEntry,
+  subjectHours,
   gradeLevel,
   organization,
   placement,
@@ -54,16 +54,14 @@ export async function loadAll(termId: string, organizationId: string) {
       .where(and(eq(assignment.organizationId, organizationId), eq(assignment.termId, termId))),
     db
       .select({
-        gradeLevelId: curriculumEntry.gradeLevelId,
-        subjectId: curriculumEntry.subjectId,
+        gradeLevelId: subjectHours.gradeLevelId,
+        subjectId: subjectHours.subjectId,
         subjectName: subject.name,
-        weeklyCount: curriculumEntry.weeklyCount,
+        weeklyCount: subjectHours.weeklyCount,
       })
-      .from(curriculumEntry)
-      .innerJoin(subject, eq(subject.id, curriculumEntry.subjectId))
-      .where(
-        and(eq(curriculumEntry.organizationId, organizationId), eq(curriculumEntry.termId, termId)),
-      ),
+      .from(subjectHours)
+      .innerJoin(subject, eq(subject.id, subjectHours.subjectId))
+      .where(and(eq(subjectHours.organizationId, organizationId), eq(subjectHours.termId, termId))),
     db
       .select({ id: subject.id, name: subject.name, color: subject.color })
       .from(subject)

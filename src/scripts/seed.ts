@@ -11,11 +11,11 @@ import {
   assignment,
   bellSchedule,
   classGroup,
-  curriculumEntry,
   gradeLevel,
   member,
   organization,
   subject,
+  subjectHours,
   teacher,
   term,
   user,
@@ -43,15 +43,13 @@ async function main() {
   await db
     .insert(organization)
     .values({ id: orgId, name: ORG_NAME, slug: ORG_SLUG, createdAt: new Date() });
-  await db
-    .insert(member)
-    .values({
-      id: crypto.randomUUID(),
-      organizationId: orgId,
-      userId: u.id,
-      role: "owner",
-      createdAt: new Date(),
-    });
+  await db.insert(member).values({
+    id: crypto.randomUUID(),
+    organizationId: orgId,
+    userId: u.id,
+    role: "owner",
+    createdAt: new Date(),
+  });
 
   // 4. Active term.
   const [activeTerm] = await db
@@ -85,11 +83,12 @@ async function main() {
     { name: "Matematika", code: "MAT", color: "#3b82f6", weekly: 4, teacher: "Pak Budi" },
     { name: "Bahasa Indonesia", code: "BIN", color: "#ef4444", weekly: 4, teacher: "Bu Sari" },
     { name: "Bahasa Inggris", code: "BIG", color: "#f59e0b", weekly: 4, teacher: "Bu Rina" },
-    { name: "IPA", code: "IPA", color: "#10b981", weekly: 4, teacher: "Bu Dewi" },
-    { name: "IPS", code: "IPS", color: "#8b5cf6", weekly: 4, teacher: "Pak Anton" },
+    { name: "IPA", code: "IPA", color: "#10b981", weekly: 3, teacher: "Bu Dewi" },
+    { name: "IPS", code: "IPS", color: "#8b5cf6", weekly: 3, teacher: "Pak Anton" },
     { name: "PJOK", code: "PJK", color: "#ec4899", weekly: 4, teacher: "Pak Eko" },
     { name: "PAI", code: "PAI", color: "#14b8a6", weekly: 3, teacher: "Ustadz Ali" },
-    { name: "PPKn", code: "PKN", color: "#6366f1", weekly: 3, teacher: "Bu Wati" },
+    { name: "Pendidikan Pancasila", code: "PPC", color: "#6366f1", weekly: 3, teacher: "Bu Wati" },
+    { name: "Informatika", code: "INF", color: "#06b6d4", weekly: 2, teacher: "Pak Rian" },
   ];
   const weeklySum = defs.reduce((s, d) => s + d.weekly, 0);
   if (weeklySum !== T) {
@@ -141,8 +140,8 @@ async function main() {
     )
     .returning();
 
-  // 8. Curriculum per grade.
-  await db.insert(curriculumEntry).values(
+  // 8. Curriculum (subject hours) per grade.
+  await db.insert(subjectHours).values(
     grades.flatMap((g) =>
       plan.map((p) => ({
         organizationId: orgId,
