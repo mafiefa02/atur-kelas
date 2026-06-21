@@ -1,15 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { SCHOOL_DAYS } from "#/lib/schedule.ts";
+import { buildGridFrame, dayLabel } from "#/lib/schedule.ts";
 import { getPublicClassTimetable } from "#/lib/server/public.ts";
 
 export const Route = createFileRoute("/p/$token")({
   loader: ({ params }) => getPublicClassTimetable({ data: { token: params.token } }),
   component: PublicTimetable,
 });
-
-const dayLabel = (n: number) => SCHOOL_DAYS.find((d) => d.n === n)?.label ?? `Day ${n}`;
-const hhmm = (t: string) => t.slice(0, 5);
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
@@ -43,13 +40,7 @@ function PublicTimetable() {
   }
 
   const { schoolName, className, gradeName, publishedAt, slots, cells } = data;
-  const dayNums = [...new Set(slots.map((s) => s.dayOfWeek))].sort((a, b) => a - b);
-  const maxSlot = slots.reduce((m, s) => Math.max(m, s.slotIndex + 1), 0);
-  const rowTime = new Map<number, string>();
-  for (const s of slots) {
-    if (!rowTime.has(s.slotIndex)) rowTime.set(s.slotIndex, `${hhmm(s.start)}–${hhmm(s.end)}`);
-  }
-  const hasSlot = new Set(slots.map((s) => `${s.dayOfWeek}:${s.slotIndex}`));
+  const { dayNums, maxSlot, rowTime, hasSlot } = buildGridFrame(slots);
   const byCell = new Map(cells.map((c) => [`${c.dayOfWeek}:${c.slotIndex}`, c]));
 
   return (

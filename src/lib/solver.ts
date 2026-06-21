@@ -351,7 +351,7 @@ export function validatePlacements(input: SolverInput, placements: Placement[]):
   const T = input.slots.length;
   const slotKey = (d: number, i: number) => `${d}:${i}`;
   const classSlot = new Map<string, Set<string>>();
-  const teacherSlot = new Map<string, Set<string>>();
+  const teacherSlot = new Set<string>();
   for (const p of placements) {
     const sk = slotKey(p.dayOfWeek, p.slotIndex);
     const cs = classSlot.get(p.classId) ?? new Set();
@@ -359,9 +359,8 @@ export function validatePlacements(input: SolverInput, placements: Placement[]):
     cs.add(sk);
     classSlot.set(p.classId, cs);
     const tk = `${p.teacherId}@${sk}`;
-    const ts = teacherSlot.get(tk) ? teacherSlot.get(tk)! : new Set<string>();
     if (teacherSlot.has(tk)) errors.push(`teacher ${p.teacherId} clash at ${sk}`);
-    teacherSlot.set(tk, ts);
+    teacherSlot.add(tk);
   }
   for (const c of input.classIds) {
     const filled = classSlot.get(c)?.size ?? 0;

@@ -22,7 +22,9 @@ export const SCHOOL_DAYS = [
   { n: 6, label: "Sabtu" },
 ] as const;
 
-const defaultDay = (schoolDay: boolean): DayConfig => ({
+export const dayLabel = (n: number) => SCHOOL_DAYS.find((d) => d.n === n)?.label ?? `Day ${n}`;
+
+export const defaultDay = (schoolDay: boolean): DayConfig => ({
   schoolDay,
   start: "07:00",
   end: "15:00",
@@ -52,6 +54,9 @@ export function toHHMM(min: number): string {
   const m = min % 60;
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
+
+// "07:00:00" / "07:00" -> "07:00" — trims a stored time to hours:minutes for display.
+export const hhmm = (t: string) => t.slice(0, 5);
 
 export type Slot = { index: number; start: string; end: string };
 
@@ -103,9 +108,31 @@ export type PublishedSnapshot = {
   classes: Record<string, SnapshotClass>; // keyed by classGroupId
 };
 
+// The full week of teaching slots, flattened across days and enriched with times.
+// The single source the solver, feasibility counter, and every grid view derive from.
+export function buildSlots(config: BellConfig): SnapshotSlot[] {
+  const slots: SnapshotSlot[] = [];
+  for (const { n } of SCHOOL_DAYS) {
+    for (const s of computeDaySlots(config.days[String(n)], config.periodMinutes)) {
+      slots.push({ dayOfWeek: n, slotIndex: s.index, start: s.start, end: s.end });
+    }
+  }
+  return slots;
+}
+
 export function totalTeachingSlots(config: BellConfig): number {
-  return SCHOOL_DAYS.reduce(
-    (sum, d) => sum + computeDaySlots(config.days[String(d.n)], config.periodMinutes).length,
-    0,
-  );
+  return buildSlots(config).length;
+}
+
+// Shared scaffolding for the three timetable grids (admin, print, public): the ordered
+// day columns, the row count, each row's time label, and which (day,slot) cells exist.
+export function buildGridFrame(slots: readonly SnapshotSlot[]) {
+  const dayNums = [...new Set(slots.map((s) => s.dayOfWeek))].sort((a, b) => a - b);
+  const maxSlot = slots.reduce((m, s) => Math.max(m, s.slotIndex + 1), 0);
+  const rowTime = new Map<number, string>();
+  for (const s of slots) {
+    if (!rowTime.has(s.slotIndex)) rowTime.set(s.slotIndex, `${hhmm(s.start)}–${hhmm(s.end)}`);
+  }
+  const hasSlot = new Set(slots.map((s) => `${s.dayOfWeek}:${s.slotIndex}`));
+  return { dayNums, maxSlot, rowTime, hasSlot };
 }

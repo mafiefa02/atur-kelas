@@ -12,6 +12,7 @@ import {
   type DayConfig,
   SCHOOL_DAYS,
   computeDaySlots,
+  defaultDay,
   totalTeachingSlots,
 } from "#/lib/schedule.ts";
 import { getBellSchedule, saveBellSchedule } from "#/lib/server/bell-schedule.ts";
@@ -21,8 +22,7 @@ export const Route = createFileRoute("/_authed/_app/schedule")({
   component: SchedulePage,
 });
 
-const emptyDay = (): DayConfig => ({ schoolDay: false, start: "07:00", end: "15:00", breaks: [] });
-const getDay = (c: BellConfig, n: number): DayConfig => c.days[String(n)] ?? emptyDay();
+const getDay = (c: BellConfig, n: number): DayConfig => c.days[String(n)] ?? defaultDay(false);
 
 function SchedulePage() {
   const { termName, config: loaded } = Route.useLoaderData();

@@ -19,13 +19,8 @@ import {
   term,
   timetable,
 } from "#/lib/db/schema";
-import {
-  DEFAULT_BELL_CONFIG,
-  type PublishedSnapshot,
-  SCHOOL_DAYS,
-  computeDaySlots,
-} from "#/lib/schedule.ts";
-import { type LessonInput, type Slot, checkFeasibility } from "#/lib/solver.ts";
+import { DEFAULT_BELL_CONFIG, type PublishedSnapshot, buildSlots } from "#/lib/schedule.ts";
+import { type LessonInput, checkFeasibility } from "#/lib/solver.ts";
 
 export type Loaded = Awaited<ReturnType<typeof loadAll>>;
 
@@ -36,13 +31,8 @@ export async function loadAll(termId: string, organizationId: string) {
     .where(eq(bellSchedule.termId, termId))
     .limit(1);
   const config = schedRow?.config ?? DEFAULT_BELL_CONFIG;
-  // Enriched with times for the grid; extra fields are ignored by the solver (Slot).
-  const slots: (Slot & { start: string; end: string })[] = [];
-  for (const { n } of SCHOOL_DAYS) {
-    for (const s of computeDaySlots(config.days[String(n)], config.periodMinutes)) {
-      slots.push({ dayOfWeek: n, slotIndex: s.index, start: s.start, end: s.end });
-    }
-  }
+  // Enriched with times for the grid; extra fields are ignored by the solver.
+  const slots = buildSlots(config);
   const [classes, assigns, curriculum, subjects, teachers] = await Promise.all([
     db
       .select({

@@ -1,6 +1,6 @@
 // Pure timetable export helpers (no DOM, no server deps) — safe on client and testable.
 
-import { SCHOOL_DAYS } from "./schedule.ts";
+import { dayLabel, hhmm } from "./schedule.ts";
 
 export type ExportSlot = { dayOfWeek: number; slotIndex: number; start: string; end: string };
 export type ExportClass = { id: string; name: string; gradeName: string };
@@ -16,9 +16,6 @@ export type ExportData = {
   classes: ExportClass[];
   placements: ExportPlacement[];
 };
-
-const dayLabel = (n: number) => SCHOOL_DAYS.find((d) => d.n === n)?.label ?? `Day ${n}`;
-const hhmm = (t: string) => t.slice(0, 5);
 
 function csvCell(value: string): string {
   return /[",\n]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value;
