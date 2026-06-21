@@ -2,6 +2,7 @@ import { PushPinIcon } from "@phosphor-icons/react";
 import { Link, createFileRoute, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 
+import { AgendaTimetable } from "#/components/agenda-timetable.tsx";
 import { Badge } from "#/components/ui/badge.tsx";
 import { Button, buttonVariants } from "#/components/ui/button.tsx";
 import { Card, CardContent, CardHeader, CardTitle } from "#/components/ui/card.tsx";
@@ -36,6 +37,7 @@ function TimetablePage() {
   const [error, setError] = useState<string | null>(null);
   const [selectedCell, setSelectedCell] = useState<{ day: number; slot: number } | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [view, setView] = useState<"agenda" | "grid">("agenda");
 
   async function generate(newSeed: boolean) {
     setBusy(true);
@@ -130,6 +132,7 @@ function TimetablePage() {
   for (const p of placements) {
     if (p.classGroupId === selectedId) cell.set(`${p.dayOfWeek}:${p.slotIndex}`, p);
   }
+  const agendaCells = placements.filter((p) => p.classGroupId === selectedId);
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-6 p-6">
@@ -262,116 +265,149 @@ function TimetablePage() {
       {timetable && classes.length > 0 ? (
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center justify-between text-base">
-              <span>Weekly grid</span>
-              <Select
-                value={selectedId}
-                onValueChange={(v) => {
-                  setSelectedId(v as string);
-                  setSelectedCell(null);
-                }}
-              >
-                <SelectTrigger className="w-56">
-                  <SelectValue>
-                    {(v: string | null) => {
-                      const c = classes.find((x) => x.id === v);
-                      return c ? `${c.gradeName} · ${c.name}` : "Pick a class";
-                    }}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {classes.map((c) => (
-                    <SelectItem
-                      key={c.id}
-                      value={c.id}
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <CardTitle className="text-base">Weekly schedule</CardTitle>
+              <div className="flex items-center gap-2">
+                <div className="inline-flex rounded-lg border border-border p-0.5">
+                  {(["agenda", "grid"] as const).map((v) => (
+                    <button
+                      key={v}
+                      type="button"
+                      onClick={() => {
+                        setView(v);
+                        setSelectedCell(null);
+                      }}
+                      className={cn(
+                        "rounded-md px-3 py-1 text-sm capitalize transition-colors",
+                        view === v
+                          ? "bg-muted font-medium text-foreground"
+                          : "text-muted-foreground hover:text-foreground",
+                      )}
                     >
-                      {c.gradeName} · {c.name}
-                    </SelectItem>
+                      {v}
+                    </button>
                   ))}
-                </SelectContent>
-              </Select>
-            </CardTitle>
+                </div>
+                <Select
+                  value={selectedId}
+                  onValueChange={(v) => {
+                    setSelectedId(v as string);
+                    setSelectedCell(null);
+                  }}
+                >
+                  <SelectTrigger className="w-56">
+                    <SelectValue>
+                      {(v: string | null) => {
+                        const c = classes.find((x) => x.id === v);
+                        return c ? `${c.gradeName} · ${c.name}` : "Pick a class";
+                      }}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {classes.map((c) => (
+                      <SelectItem
+                        key={c.id}
+                        value={c.id}
+                      >
+                        {c.gradeName} · {c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
           </CardHeader>
           <CardContent className="flex flex-col gap-2 overflow-x-auto">
-            <p className="text-xs text-muted-foreground">
-              Click a lesson, then another in this class to swap them. Use the pin to lock a lesson
-              so regenerate keeps it.
-            </p>
-            <table className="w-full border-separate border-spacing-1 text-sm">
-              <thead>
-                <tr>
-                  <th className="w-24" />
-                  {dayNums.map((d) => (
-                    <th
-                      key={d}
-                      className="px-2 py-1 text-left font-medium"
-                    >
-                      {dayLabel(d)}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {Array.from({ length: maxSlot }, (_, r) => (
-                  <tr key={r}>
-                    <td className="pr-2 align-top font-mono text-xs text-muted-foreground">
-                      {rowTime.get(r) ?? `Jam ${r + 1}`}
-                    </td>
-                    {dayNums.map((d) => {
-                      const p = cell.get(`${d}:${r}`);
-                      const exists = hasSlot.has(`${d}:${r}`);
-                      const isSel = selectedCell?.day === d && selectedCell?.slot === r;
-                      return (
-                        <td
+            {view === "agenda" ? (
+              <AgendaTimetable
+                slots={slots}
+                cells={agendaCells}
+              />
+            ) : (
+              <>
+                <p className="text-xs text-muted-foreground">
+                  Click a lesson, then another in this class to swap them. Use the pin to lock a
+                  lesson so regenerate keeps it.
+                </p>
+                <table className="w-full border-separate border-spacing-1 text-sm">
+                  <thead>
+                    <tr>
+                      <th className="w-24" />
+                      {dayNums.map((d) => (
+                        <th
                           key={d}
-                          className="align-top"
+                          className="px-2 py-1 text-left font-medium"
                         >
-                          {p ? (
-                            <div
-                              onClick={() => onCellClick(d, r, p.isPinned)}
-                              className={cn(
-                                "group relative cursor-pointer rounded-lg px-2 py-1.5 ring-1 ring-transparent transition-shadow",
-                                isSel && "ring-2 ring-ring",
-                                busy && "pointer-events-none opacity-70",
-                              )}
-                              style={{ backgroundColor: `${p.subjectColor ?? "#64748b"}22` }}
-                            >
-                              <div className="flex items-start justify-between gap-1">
-                                <span className="font-medium">{p.subjectName}</span>
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    onTogglePin(d, r);
-                                  }}
-                                  className={cn(
-                                    "shrink-0 rounded p-0.5 transition-opacity",
-                                    p.isPinned
-                                      ? "text-primary"
-                                      : "text-muted-foreground opacity-0 group-hover:opacity-100",
-                                  )}
-                                  title={p.isPinned ? "Unpin" : "Pin"}
-                                >
-                                  <PushPinIcon
-                                    weight={p.isPinned ? "fill" : "regular"}
-                                    className="size-3.5"
-                                  />
-                                </button>
-                              </div>
-                              <div className="text-xs text-muted-foreground">{p.teacherName}</div>
-                            </div>
-                          ) : exists ? (
-                            <div className="rounded-lg bg-muted/30 px-2 py-1.5 text-xs text-muted-foreground">
-                              —
-                            </div>
-                          ) : null}
+                          {dayLabel(d)}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Array.from({ length: maxSlot }, (_, r) => (
+                      <tr key={r}>
+                        <td className="pr-2 align-top font-mono text-xs text-muted-foreground">
+                          {rowTime.get(r) ?? `Jam ${r + 1}`}
                         </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                        {dayNums.map((d) => {
+                          const p = cell.get(`${d}:${r}`);
+                          const exists = hasSlot.has(`${d}:${r}`);
+                          const isSel = selectedCell?.day === d && selectedCell?.slot === r;
+                          return (
+                            <td
+                              key={d}
+                              className="align-top"
+                            >
+                              {p ? (
+                                <div
+                                  onClick={() => onCellClick(d, r, p.isPinned)}
+                                  className={cn(
+                                    "group relative cursor-pointer rounded-lg px-2 py-1.5 ring-1 ring-transparent transition-shadow",
+                                    isSel && "ring-2 ring-ring",
+                                    busy && "pointer-events-none opacity-70",
+                                  )}
+                                  style={{ backgroundColor: `${p.subjectColor ?? "#64748b"}22` }}
+                                >
+                                  <div className="flex items-start justify-between gap-1">
+                                    <span className="font-medium">{p.subjectName}</span>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        onTogglePin(d, r);
+                                      }}
+                                      className={cn(
+                                        "shrink-0 rounded p-0.5 transition-opacity",
+                                        p.isPinned
+                                          ? "text-primary"
+                                          : "text-muted-foreground opacity-0 group-hover:opacity-100",
+                                      )}
+                                      title={p.isPinned ? "Unpin" : "Pin"}
+                                    >
+                                      <PushPinIcon
+                                        weight={p.isPinned ? "fill" : "regular"}
+                                        className="size-3.5"
+                                      />
+                                    </button>
+                                  </div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {p.teacherName}
+                                  </div>
+                                </div>
+                              ) : exists ? (
+                                <div className="rounded-lg bg-muted/30 px-2 py-1.5 text-xs text-muted-foreground">
+                                  —
+                                </div>
+                              ) : null}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </>
+            )}
           </CardContent>
         </Card>
       ) : readiness.ok && classes.length > 0 ? (
