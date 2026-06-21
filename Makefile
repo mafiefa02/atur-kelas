@@ -12,7 +12,7 @@ COMPOSE ?= docker compose
 
 .DEFAULT_GOAL := help
 
-.PHONY: help setup env install dev \
+.PHONY: help setup env install dev stop restart restart-seed \
         db-up db-down migrate generate studio seed \
         reset fresh clean rebuild
 
@@ -80,3 +80,12 @@ rebuild: clean setup ## Nuke everything (deps + db) and run a fresh setup
 
 dev: ## Start the dev server
 	$(PNPM) dev
+
+stop: ## Stop the running dev server (kills whatever holds port 3000)
+	./scripts/dev-stop.sh
+
+restart: ## Kill the dev server, reset the DB from scratch, then start the dev server
+	./scripts/dev-restart.sh
+
+restart-seed: ## Like restart, but also seed demo data before starting (destructive)
+	./scripts/dev-restart.sh --seed
