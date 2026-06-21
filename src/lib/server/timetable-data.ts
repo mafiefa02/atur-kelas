@@ -8,7 +8,6 @@ import { and, asc, eq } from "drizzle-orm";
 import { db } from "#/lib/db";
 import {
   assignment,
-  bellSchedule,
   classGroup,
   curriculumEntry,
   gradeLevel,
@@ -19,18 +18,15 @@ import {
   term,
   timetable,
 } from "#/lib/db/schema";
-import { DEFAULT_BELL_CONFIG, type PublishedSnapshot, buildSlots } from "#/lib/schedule.ts";
+import { type PublishedSnapshot, buildSlots } from "#/lib/schedule.ts";
 import { type LessonInput, checkFeasibility } from "#/lib/solver.ts";
+
+import { loadBellConfig } from "./bell-schedule-data.ts";
 
 export type Loaded = Awaited<ReturnType<typeof loadAll>>;
 
 export async function loadAll(termId: string, organizationId: string) {
-  const [schedRow] = await db
-    .select({ config: bellSchedule.config })
-    .from(bellSchedule)
-    .where(eq(bellSchedule.termId, termId))
-    .limit(1);
-  const config = schedRow?.config ?? DEFAULT_BELL_CONFIG;
+  const config = await loadBellConfig(termId);
   // Enriched with times for the grid; extra fields are ignored by the solver.
   const slots = buildSlots(config);
   const [classes, assigns, curriculum, subjects, teachers] = await Promise.all([
