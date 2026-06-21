@@ -7,7 +7,6 @@ import { solve } from "#/lib/solver.ts";
 
 import { requireActiveTerm } from "./context.ts";
 import {
-  applyPins,
   buildLessons,
   buildPublishedSnapshot,
   computeReadiness,
@@ -51,9 +50,16 @@ export const generateTimetable = createServerFn({ method: "POST" })
       teacherIds: [...new Set(loaded.assigns.map((a) => a.teacherId))],
       lessons: buildLessons(loaded),
       seed,
+      // Pinned cells are fixed inputs: the solver builds the new grid around them.
+      pins: pinned.map((p) => ({
+        classId: p.classGroupId,
+        dayOfWeek: p.dayOfWeek,
+        slotIndex: p.slotIndex,
+        assignmentId: p.assignmentId,
+      })),
     });
-    const teacherByAssignment = new Map(loaded.assigns.map((a) => [a.id, a.teacherId]));
-    const pinnedKeys = applyPins(result.placements, pinned, teacherByAssignment);
+    const pinnedKeys = new Set(result.honoredPinKeys);
+    const droppedPins = pinned.length - pinnedKeys.size;
     const inputsHash = hashInputs(loaded);
 
     const draftFields = {
@@ -82,7 +88,7 @@ export const generateTimetable = createServerFn({ method: "POST" })
         })),
       );
     });
-    return { ok: true as const };
+    return { ok: true as const, droppedPins };
   });
 
 export const getTimetableView = createServerFn({ method: "GET" }).handler(async () => {

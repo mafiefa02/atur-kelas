@@ -9,12 +9,21 @@ export type LessonInput = {
   teacherId: string;
   assignmentId: string;
 };
+// A locked cell: the given assignment must land at exactly (dayOfWeek, slotIndex) for
+// its class. Pins are fixed inputs to the solver, not a post-hoc repair (see docs §14).
+export type PinInput = {
+  classId: string;
+  dayOfWeek: number;
+  slotIndex: number;
+  assignmentId: string;
+};
 export type SolverInput = {
   slots: Slot[]; // length T, the global teaching grid
   classIds: string[];
   teacherIds: string[];
   lessons: LessonInput[]; // per class, count must equal T
   seed: number;
+  pins?: PinInput[]; // optional locked cells the solver builds around
 };
 export type Placement = {
   classId: string;
@@ -78,29 +87,49 @@ export function checkFeasibility(input: SolverInput): Feasibility {
   };
 }
 
-// Kuhn's augmenting-path perfect matching saturating all L left vertices.
-function perfectMatching(L: number, R: number, adj: number[][]): number[] | null {
+type ForcedEdge = { c: number; t: number };
+
+// Kuhn's augmenting-path matching for one round, saturating all L left vertices over R
+// teachers. `forced` pre-binds class→teacher edges (pinned cells): those teachers are
+// locked so augmenting paths can't steal them, and forced classes are matched outright.
+// Returns matchL (class→teacher) or null if any left vertex (dummy included) can't be
+// saturated — which, for a forced round, signals the pins can't be honored this round.
+function matchRound(
+  L: number,
+  R: number,
+  adj: number[][],
+  forced: ForcedEdge[],
+  cap: number[][],
+): number[] | null {
   const matchR: number[] = Array.from({ length: R }, () => -1);
+  const locked: boolean[] = Array.from({ length: R }, () => false);
+  const forcedClass = new Set<number>();
+  for (const f of forced) {
+    if (cap[f.c][f.t] <= 0 || locked[f.t]) return null; // demand gone / teacher clash
+    matchR[f.t] = f.c;
+    locked[f.t] = true;
+    forcedClass.add(f.c);
+  }
   const tryKuhn = (l: number, seen: boolean[]): boolean => {
     for (const r of adj[l]) {
-      if (!seen[r]) {
-        seen[r] = true;
-        if (matchR[r] === -1 || tryKuhn(matchR[r], seen)) {
-          matchR[r] = l;
-          return true;
-        }
+      if (locked[r] || seen[r]) continue;
+      seen[r] = true;
+      if (matchR[r] === -1 || tryKuhn(matchR[r], seen)) {
+        matchR[r] = l;
+        return true;
       }
     }
     return false;
   };
   for (let l = 0; l < L; l++) {
+    if (forcedClass.has(l)) continue;
     if (
       !tryKuhn(
         l,
         Array.from({ length: R }, () => false),
       )
     ) {
-      return null; // shouldn't happen for a regular graph
+      return null;
     }
   }
   const matchL: number[] = Array.from({ length: L }, () => -1);
@@ -112,10 +141,21 @@ function perfectMatching(L: number, R: number, adj: number[][]): number[] | null
 
 type Cell = { subjectId: string; teacherId: string; assignmentId: string };
 
+type ConstructResult = {
+  grid: (Cell | null)[][];
+  // Indices "c|r" of cells that ended up locked to a pin (honored). Pins that couldn't
+  // be honored without breaking feasibility are silently absent.
+  pinned: Set<string>;
+};
+
 // Construct a hard-feasible grid: grid[classIndex][round] = lesson. Round r maps to
 // slots[r]. Guaranteed by regularizing to a T-regular bipartite graph (dummy
 // "free-period" classes absorb teacher slack) and extracting T perfect matchings.
-function construct(input: SolverInput, rng: () => number): (Cell | null)[][] {
+// Pinned cells are fixed first: their rounds are matched ahead of the rest with the
+// pin's class→teacher edge forced, so the remainder routes around them. A pin that
+// can't be honored in its round is dropped (graceful — the precoloring-extension
+// problem is NP-hard in general, so we never promise to honor an arbitrary pin set).
+function construct(input: SolverInput, rng: () => number): ConstructResult {
   const T = input.slots.length;
   const classIds = input.classIds;
   const teacherIds = input.teacherIds;
@@ -158,27 +198,76 @@ function construct(input: SolverInput, rng: () => number): (Cell | null)[][] {
     Array.from({ length: T }, () => null as Cell | null),
   );
 
-  for (let r = 0; r < T; r++) {
+  // Resolve pins to (round, class, teacher, assignment), dropping any that don't map to
+  // a current slot/class/lesson, exceed available instances, or clash within a round.
+  const asgTeacher = new Map(input.lessons.map((l) => [l.assignmentId, l.teacherId]));
+  const slotRound = new Map(input.slots.map((s, i) => [`${s.dayOfWeek}:${s.slotIndex}`, i]));
+  type ResolvedPin = { r: number; c: number; t: number; assignmentId: string };
+  const pinsByRound = new Map<number, ResolvedPin[]>();
+  const pinned = new Set<string>(); // "c|r" of accepted pins (may shrink on drop)
+  const usedInstances = new Map<string, number>(); // assignmentId -> pins consuming it
+  for (const pin of input.pins ?? []) {
+    const r = slotRound.get(`${pin.dayOfWeek}:${pin.slotIndex}`);
+    const c = cIdx.get(pin.classId);
+    const teacherId = asgTeacher.get(pin.assignmentId);
+    const t = teacherId === undefined ? undefined : tIdx.get(teacherId);
+    if (r === undefined || c === undefined || t === undefined) continue;
+    const have = rem[c][t].filter((x) => x.assignmentId === pin.assignmentId).length;
+    const used = usedInstances.get(pin.assignmentId) ?? 0;
+    if (used + 1 > have) continue; // can't pin more copies than exist
+    const list = pinsByRound.get(r) ?? [];
+    if (list.some((p) => p.c === c || p.t === t)) continue; // dup cell / teacher clash in round
+    list.push({ r, c, t, assignmentId: pin.assignmentId });
+    pinsByRound.set(r, list);
+    usedInstances.set(pin.assignmentId, used + 1);
+    pinned.add(`${c}|${r}`);
+  }
+
+  // Process pinned rounds first (residual is most flexible early), then the rest. With
+  // no pins this is just 0..T-1, identical to the original schedule.
+  const order = [
+    ...pinsByRound.keys(),
+    ...Array.from({ length: T }, (_, r) => r).filter((r) => !pinsByRound.has(r)),
+  ];
+
+  for (const r of order) {
     const adj: number[][] = [];
     for (let l = 0; l < L; l++) {
       const neighbors: number[] = [];
       for (let t = 0; t < Tea; t++) if (cap[l][t] > 0) neighbors.push(t);
       adj.push(shuffle(neighbors, rng)); // randomized for variety + determinism
     }
-    const match = perfectMatching(L, Tea, adj);
+    // Try to honor this round's pins; drop them one at a time until the round saturates.
+    // An empty forced set is an ordinary regular-bipartite match, which always succeeds.
+    let forced = pinsByRound.get(r) ?? [];
+    let match = matchRound(L, Tea, adj, forced, cap);
+    while (!match && forced.length > 0) {
+      const dropped = forced[forced.length - 1];
+      forced = forced.slice(0, -1);
+      pinned.delete(`${dropped.c}|${dropped.r}`);
+      match = matchRound(L, Tea, adj, forced, cap);
+    }
     if (!match) {
       throw new Error("Solver failed to find a matching — inputs are likely infeasible.");
     }
+    const forcedAsg = new Map(forced.map((f) => [f.c, f.assignmentId]));
     for (let l = 0; l < L; l++) {
       const t = match[l];
       cap[l][t]--;
       if (l < C) {
-        const cell = rem[l][t].pop();
+        const want = forcedAsg.get(l);
+        let cell: Cell | undefined;
+        if (want !== undefined) {
+          const i = rem[l][t].findIndex((x) => x.assignmentId === want);
+          cell = i >= 0 ? rem[l][t].splice(i, 1)[0] : rem[l][t].pop();
+        } else {
+          cell = rem[l][t].pop();
+        }
         if (cell) grid[l][r] = cell;
       }
     }
   }
-  return grid;
+  return { grid, pinned };
 }
 
 const pairs = (n: number) => (n * (n - 1)) / 2;
@@ -187,7 +276,14 @@ const W_TEACHER = 1;
 
 // Improve subject spread (same subject not piled on one day for a class) and teacher
 // daily balance, via within-class swaps between two different-day rounds. Bounded.
-function optimize(input: SolverInput, grid: (Cell | null)[][], rng: () => number): number {
+// Pinned cells stay put: they still count toward the penalty (so other lessons spread
+// around them), but a swap touching a pinned cell is never proposed.
+function optimize(
+  input: SolverInput,
+  grid: (Cell | null)[][],
+  rng: () => number,
+  pinned: Set<string>,
+): number {
   const T = input.slots.length;
   const C = input.classIds.length;
   const dayOf = input.slots.map((s) => s.dayOfWeek);
@@ -234,6 +330,10 @@ function optimize(input: SolverInput, grid: (Cell | null)[][], rng: () => number
     const r1 = Math.floor(rng() * T);
     const r2 = Math.floor(rng() * T);
     if (r1 === r2 || dayOf[r1] === dayOf[r2]) {
+      sinceImprove++;
+      continue;
+    }
+    if (pinned.has(`${c}|${r1}`) || pinned.has(`${c}|${r2}`)) {
       sinceImprove++;
       continue;
     }
@@ -323,10 +423,16 @@ function optimize(input: SolverInput, grid: (Cell | null)[][], rng: () => number
   return current;
 }
 
-export function solve(input: SolverInput): { placements: Placement[]; softPenalty: number } {
+export function solve(input: SolverInput): {
+  placements: Placement[];
+  softPenalty: number;
+  // Cell keys "classId:dayOfWeek:slotIndex" of pins the solver honored. Requested pins
+  // absent here couldn't be placed and should be treated as unpinned by the caller.
+  honoredPinKeys: string[];
+} {
   const rng = mulberry32(input.seed);
-  const grid = construct(input, rng);
-  const softPenalty = optimize(input, grid, rng);
+  const { grid, pinned } = construct(input, rng);
+  const softPenalty = optimize(input, grid, rng, pinned);
   const placements: Placement[] = [];
   for (let c = 0; c < input.classIds.length; c++) {
     for (let r = 0; r < input.slots.length; r++) {
@@ -342,7 +448,11 @@ export function solve(input: SolverInput): { placements: Placement[]; softPenalt
       });
     }
   }
-  return { placements, softPenalty };
+  const honoredPinKeys = [...pinned].map((k) => {
+    const [c, r] = k.split("|").map(Number);
+    return `${input.classIds[c]}:${input.slots[r].dayOfWeek}:${input.slots[r].slotIndex}`;
+  });
+  return { placements, softPenalty, honoredPinKeys };
 }
 
 // Validation helper (used by tests): no teacher clash, every class slot filled.

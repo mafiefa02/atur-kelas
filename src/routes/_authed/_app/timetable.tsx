@@ -51,6 +51,13 @@ function TimetablePage() {
         return;
       }
       setSelectedCell(null);
+      if (r.droppedPins > 0) {
+        setMessage(
+          `Couldn't keep ${r.droppedPins} pinned ${
+            r.droppedPins === 1 ? "lesson" : "lessons"
+          } in this layout — they were left unpinned.`,
+        );
+      }
       await router.invalidate();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to generate.");
@@ -174,7 +181,7 @@ function TimetablePage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => generate(false)}
+              onClick={() => generate(true)}
               disabled={busy || !readiness.ok}
             >
               Regenerate

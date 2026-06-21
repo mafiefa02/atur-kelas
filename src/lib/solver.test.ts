@@ -95,3 +95,84 @@ describe("solver", () => {
     expect(ms).toBeLessThan(8000);
   });
 });
+
+describe("solver pins", () => {
+  const base = makeInstance(6, 12, 24, 1);
+  const ref = solve(base).placements;
+  const cellKey = (p: { classId: string; dayOfWeek: number; slotIndex: number }) =>
+    `${p.classId}:${p.dayOfWeek}:${p.slotIndex}`;
+
+  it("keeps a locked lesson at its exact cell/assignment across many seeds, post-optimize", () => {
+    const target = ref[3];
+    const pin = {
+      classId: target.classId,
+      dayOfWeek: target.dayOfWeek,
+      slotIndex: target.slotIndex,
+      assignmentId: target.assignmentId,
+    };
+    for (let seed = 1; seed <= 20; seed++) {
+      const res = solve({ ...base, seed, pins: [pin] });
+      expect(res.honoredPinKeys).toContain(cellKey(target));
+      const placed = res.placements.find((p) => cellKey(p) === cellKey(target));
+      // exact cell holds the exact pinned assignment even after the optimize pass
+      expect(placed?.assignmentId).toBe(pin.assignmentId);
+      expect(validatePlacements(base, res.placements)).toEqual([]);
+    }
+  });
+
+  it("every honored key actually holds its pinned assignment (multi-pin)", () => {
+    const seen = new Set<string>();
+    const pins = [];
+    for (const p of ref) {
+      if (seen.has(p.classId)) continue;
+      seen.add(p.classId);
+      pins.push({
+        classId: p.classId,
+        dayOfWeek: p.dayOfWeek,
+        slotIndex: p.slotIndex,
+        assignmentId: p.assignmentId,
+      });
+    }
+    const res = solve({ ...base, seed: 777, pins });
+    const byCell = new Map(res.placements.map((p) => [cellKey(p), p.assignmentId]));
+    const want = new Map(pins.map((p) => [cellKey(p), p.assignmentId]));
+    for (const key of res.honoredPinKeys) {
+      expect(byCell.get(key)).toBe(want.get(key)); // contract generateTimetable trusts
+    }
+    expect(validatePlacements(base, res.placements)).toEqual([]);
+  });
+
+  it("drops conflicting pins (same teacher + slot) gracefully and stays clash-free", () => {
+    const slot = base.slots[0];
+    const pins = [
+      {
+        classId: "c0",
+        dayOfWeek: slot.dayOfWeek,
+        slotIndex: slot.slotIndex,
+        assignmentId: "c0-t0-0",
+      },
+      {
+        classId: "c1",
+        dayOfWeek: slot.dayOfWeek,
+        slotIndex: slot.slotIndex,
+        assignmentId: "c1-t0-0",
+      },
+    ];
+    const res = solve({ ...base, seed: 5, pins });
+    // both demand teacher t0 in the same slot — at most one can be honored
+    expect(res.honoredPinKeys.length).toBeLessThanOrEqual(1);
+    expect(res.honoredPinKeys).not.toContain(`c1:${slot.dayOfWeek}:${slot.slotIndex}`);
+    expect(validatePlacements(base, res.placements)).toEqual([]);
+  });
+
+  it("ignores pins that don't resolve to a current slot/assignment", () => {
+    const slot = base.slots[0];
+    const pins = [
+      { classId: "c0", dayOfWeek: 99, slotIndex: 99, assignmentId: "c0-t0-0" }, // no such slot
+      { classId: "c0", dayOfWeek: slot.dayOfWeek, slotIndex: slot.slotIndex, assignmentId: "nope" }, // no such lesson
+    ];
+    const res = solve({ ...base, seed: 5, pins });
+    expect(res.honoredPinKeys).toEqual([]);
+    expect(validatePlacements(base, res.placements)).toEqual([]);
+  });
+});
