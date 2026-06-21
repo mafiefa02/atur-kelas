@@ -1,6 +1,8 @@
+import { WarningIcon } from "@phosphor-icons/react";
 import { Link, createFileRoute, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 
+import { Alert, AlertDescription, AlertTitle } from "#/components/ui/alert.tsx";
 import { Badge } from "#/components/ui/badge.tsx";
 import { Button } from "#/components/ui/button.tsx";
 import { Card, CardContent, CardHeader, CardTitle } from "#/components/ui/card.tsx";
@@ -71,10 +73,31 @@ function AssignmentsPage() {
     (e) => e.gradeLevelId === selected.gradeLevelId,
   );
   const existing: Record<string, string> = {};
+  const savedWeekly: Record<string, number> = {};
   for (const a of assignments) {
     if (a.classGroupId === selected.id) {
       existing[a.subjectId] = a.teacherId;
+      savedWeekly[a.subjectId] = a.weeklyCount;
     }
+  }
+
+  // Curriculum weekly count per (grade, subject) — the source of truth that each saved
+  // assignment's count is denormalized from and can silently drift away from when the
+  // curriculum is later edited.
+  const currWeekly = new Map<string, number>();
+  for (const e of curriculum) currWeekly.set(`${e.gradeLevelId}:${e.subjectId}`, e.weeklyCount);
+
+  // A class is out of sync when a saved assignment's count no longer matches the curriculum,
+  // or it still has an assignment for a subject dropped from the curriculum (an orphan).
+  // Both keep counting toward the per-class total in the generate gate, so the class must be
+  // re-saved (which resyncs counts and removes orphans) before a timetable can be generated.
+  const classById = new Map(classes.map((c) => [c.id, c]));
+  const staleClassIds = new Set<string>();
+  for (const a of assignments) {
+    const cls = classById.get(a.classGroupId);
+    if (!cls) continue;
+    const curr = currWeekly.get(`${cls.gradeLevelId}:${a.subjectId}`);
+    if (curr === undefined || curr !== a.weeklyCount) staleClassIds.add(a.classGroupId);
   }
 
   // Teacher load across all saved assignments.
@@ -93,6 +116,21 @@ function AssignmentsPage() {
         </p>
       </div>
 
+      {staleClassIds.size > 0 ? (
+        <Alert variant="destructive">
+          <WarningIcon />
+          <AlertTitle>
+            {staleClassIds.size} {staleClassIds.size === 1 ? "class has" : "classes have"} lesson
+            hours out of date
+          </AlertTitle>
+          <AlertDescription>
+            The curriculum changed after these assignments were saved, so their weekly counts no
+            longer match (flagged below). Open each one and click Save to resync it — the generator
+            stays blocked until every class is back in sync.
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
       <div className="flex items-center gap-3">
         <Label>Class</Label>
         <Select
@@ -103,7 +141,15 @@ function AssignmentsPage() {
             <SelectValue>
               {(v: string | null) => {
                 const c = classes.find((x) => x.id === v);
-                return c ? `${c.gradeName} · ${c.name}` : "Pick a class";
+                if (!c) return "Pick a class";
+                return (
+                  <span className="flex items-center gap-1.5">
+                    {c.gradeName} · {c.name}
+                    {staleClassIds.has(c.id) ? (
+                      <WarningIcon className="size-3.5 text-destructive" />
+                    ) : null}
+                  </span>
+                );
               }}
             </SelectValue>
           </SelectTrigger>
@@ -113,7 +159,12 @@ function AssignmentsPage() {
                 key={c.id}
                 value={c.id}
               >
-                {c.gradeName} · {c.name}
+                <span className="flex items-center gap-1.5">
+                  {c.gradeName} · {c.name}
+                  {staleClassIds.has(c.id) ? (
+                    <WarningIcon className="size-3.5 text-destructive" />
+                  ) : null}
+                </span>
               </SelectItem>
             ))}
           </SelectContent>
@@ -141,6 +192,7 @@ function AssignmentsPage() {
             rows={gradeCurriculum}
             teachers={teachers}
             existing={existing}
+            savedWeekly={savedWeekly}
           />
         )}
 
@@ -222,11 +274,13 @@ function ClassEditor({
   rows,
   teachers,
   existing,
+  savedWeekly,
 }: {
   classId: string;
   rows: CurriculumRow[];
   teachers: { id: string; name: string }[];
   existing: Record<string, string>;
+  savedWeekly: Record<string, number>;
 }) {
   const router = useRouter();
   const [pick, setPick] = useState<Record<string, string>>(() =>
@@ -238,6 +292,22 @@ function ClassEditor({
   const [saved, setSaved] = useState(false);
 
   const assignedCount = rows.filter((r) => pick[r.subjectId] && pick[r.subjectId] !== NONE).length;
+
+  // A saved assignment whose stored count no longer matches the curriculum (the ×/wk column,
+  // which always shows the current curriculum value). The grid silently displays the new
+  // count while the DB still holds the old one — these deltas make that legible.
+  const staleSubjects = new Set(
+    rows
+      .filter(
+        (r) => savedWeekly[r.subjectId] !== undefined && savedWeekly[r.subjectId] !== r.weeklyCount,
+      )
+      .map((r) => r.subjectId),
+  );
+  const rowSubjectIds = new Set(rows.map((r) => r.subjectId));
+  // Assignments for subjects dropped from the curriculum aren't shown as rows, but still
+  // count toward the class total until a save reconciles them away.
+  const orphanCount = Object.keys(savedWeekly).filter((s) => !rowSubjectIds.has(s)).length;
+  const outOfSync = staleSubjects.size > 0 || orphanCount > 0;
 
   function setTeacher(subjectId: string, v: string) {
     setPick((p) => ({ ...p, [subjectId]: v }));
@@ -274,6 +344,21 @@ function ClassEditor({
         </CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
+        {outOfSync ? (
+          <Alert variant="destructive">
+            <WarningIcon />
+            <AlertTitle>Lesson hours out of date with the curriculum</AlertTitle>
+            <AlertDescription>
+              Saving updates this class's weekly counts to match the curriculum
+              {orphanCount > 0
+                ? ` and removes ${orphanCount} lesson row${orphanCount === 1 ? "" : "s"} for ${
+                    orphanCount === 1 ? "a subject" : "subjects"
+                  } dropped from it`
+                : ""}
+              .
+            </AlertDescription>
+          </Alert>
+        ) : null}
         <Table>
           <TableHeader>
             <TableRow>
@@ -286,7 +371,18 @@ function ClassEditor({
             {rows.map((r) => (
               <TableRow key={r.subjectId}>
                 <TableCell className="font-medium">{r.subjectName}</TableCell>
-                <TableCell className="text-right text-muted-foreground">{r.weeklyCount}</TableCell>
+                <TableCell className="text-right tabular-nums">
+                  {staleSubjects.has(r.subjectId) ? (
+                    <span className="inline-flex items-center gap-1">
+                      <span className="text-muted-foreground line-through">
+                        {savedWeekly[r.subjectId]}
+                      </span>
+                      <span className="font-semibold text-destructive">{r.weeklyCount}</span>
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground">{r.weeklyCount}</span>
+                  )}
+                </TableCell>
                 <TableCell>
                   <Select
                     value={pick[r.subjectId] ?? NONE}
@@ -325,7 +421,7 @@ function ClassEditor({
           <Button
             size="sm"
             onClick={onSave}
-            disabled={pending || !dirty}
+            disabled={pending || (!dirty && !outOfSync)}
           >
             {pending ? "Saving…" : "Save"}
           </Button>

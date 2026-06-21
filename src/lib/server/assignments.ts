@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray, notInArray } from "drizzle-orm";
 
 import { db } from "#/lib/db";
 import {
@@ -89,6 +89,7 @@ export const setClassAssignments = createServerFn({ method: "POST" })
         and(eq(subjectHours.termId, term.id), eq(subjectHours.gradeLevelId, cls.gradeLevelId)),
       );
     const weeklyBySubject = new Map(curr.map((c) => [c.subjectId, c.weeklyCount]));
+    const curriculumSubjectIds = [...weeklyBySubject.keys()];
 
     const teacherIds = Object.values(data.teacherBySubject).filter((v): v is string => Boolean(v));
     let ownedTeachers = new Set<string>();
@@ -134,6 +135,22 @@ export const setClassAssignments = createServerFn({ method: "POST" })
             target: [assignment.classGroupId, assignment.subjectId],
             set: { teacherId, weeklyCount },
           });
+      }
+
+      // Reconcile: drop assignments for subjects no longer in this grade's curriculum.
+      // Such orphans are invisible in the editor (it only renders curriculum rows) yet
+      // still counted by `summarize`, so they silently break the per-class feasibility
+      // balance. Re-saving a class therefore fully resyncs it to the curriculum.
+      if (curriculumSubjectIds.length > 0) {
+        await tx
+          .delete(assignment)
+          .where(
+            and(
+              eq(assignment.organizationId, organizationId),
+              eq(assignment.classGroupId, data.classGroupId),
+              notInArray(assignment.subjectId, curriculumSubjectIds),
+            ),
+          );
       }
     });
     return { ok: true };

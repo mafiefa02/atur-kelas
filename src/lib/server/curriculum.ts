@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { and, asc, eq, inArray } from "drizzle-orm";
 
 import { db } from "#/lib/db";
-import { subjectHours, gradeLevel, subject } from "#/lib/db/schema/app.ts";
+import { assignment, classGroup, subjectHours, gradeLevel, subject } from "#/lib/db/schema/app.ts";
 
 import { loadWeeklyTeachingSlots } from "./bell-schedule-data.ts";
 import { requireActiveTerm } from "./context.ts";
@@ -66,6 +66,22 @@ export const setGradeCurriculum = createServerFn({ method: "POST" })
       }
     }
     await db.transaction(async (tx) => {
+      // `assignment.weeklyCount` is a denormalized copy of the curriculum count, so every
+      // change here must cascade to the existing assignments of this grade's classes —
+      // otherwise they silently drift and break the per-class feasibility balance with no
+      // obvious cause. Scoped to the active term's classes for this grade.
+      const gradeClasses = await tx
+        .select({ id: classGroup.id })
+        .from(classGroup)
+        .where(
+          and(
+            eq(classGroup.organizationId, organizationId),
+            eq(classGroup.termId, term.id),
+            eq(classGroup.gradeLevelId, data.gradeLevelId),
+          ),
+        );
+      const classIds = gradeClasses.map((c) => c.id);
+
       for (const [subjectId, raw] of Object.entries(data.counts ?? {})) {
         const count = Math.round(Number(raw));
         if (!Number.isFinite(count) || count <= 0) {
@@ -78,6 +94,18 @@ export const setGradeCurriculum = createServerFn({ method: "POST" })
                 eq(subjectHours.subjectId, subjectId),
               ),
             );
+          // Subject dropped from the curriculum → its assignments are now invalid; remove
+          // them so they don't linger as orphans counted toward the class total.
+          if (classIds.length > 0) {
+            await tx
+              .delete(assignment)
+              .where(
+                and(
+                  eq(assignment.subjectId, subjectId),
+                  inArray(assignment.classGroupId, classIds),
+                ),
+              );
+          }
           continue;
         }
         if (count > 100) {
@@ -96,6 +124,15 @@ export const setGradeCurriculum = createServerFn({ method: "POST" })
             target: [subjectHours.termId, subjectHours.gradeLevelId, subjectHours.subjectId],
             set: { weeklyCount: count },
           });
+        // Keep existing assignments' counts in step with the new curriculum value.
+        if (classIds.length > 0) {
+          await tx
+            .update(assignment)
+            .set({ weeklyCount: count })
+            .where(
+              and(eq(assignment.subjectId, subjectId), inArray(assignment.classGroupId, classIds)),
+            );
+        }
       }
     });
     return { ok: true };
